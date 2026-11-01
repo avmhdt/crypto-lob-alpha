@@ -878,6 +878,9 @@ class VenuePipeline:
         }
         self.active = dict(state["active"])
         self.standby = dict(state["standby"])
+        for logical in self.standby:
+            for book in self._logical_streams(logical)[0]:
+                book.overlap = True
 
     def status(self, now: int) -> dict[str, Any]:
         """Snapshot for `status.json`."""

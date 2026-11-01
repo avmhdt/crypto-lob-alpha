@@ -20,6 +20,7 @@ from lob_alpha.record.venues.base import (
     Heartbeat,
     Level,
     ParseError,
+    ServerTime,
     Snapshot,
     SnapshotEvent,
     TradeEvent,
@@ -45,6 +46,7 @@ class Kraken:
     max_conn_age_h: float | None = None
     keep_raw_strings = True
     contiguous_trade_ids = False
+    checkpoint_kind: str | None = None
 
     def __init__(self, cfg: VenueConfig) -> None:
         self.cfg = cfg
@@ -71,12 +73,18 @@ class Kraken:
             self._sub("subscribe", "book", [symbol]),
         ]
 
-    def ping_message(self, sent_ns: int) -> bytes:
+    def clock_ping(self, sent_ns: int) -> bytes | None:
         """Application ping. `req_id` carries the send time so a pong alone gives the RTT."""
         return orjson.dumps({"method": "ping", "req_id": sent_ns})
 
     async def fetch_snapshot(self, http: httpx.AsyncClient, symbol: str) -> Snapshot | None:
         return None  # the snapshot arrives on the websocket after subscribe
+
+    async def fetch_checkpoint(self, http: httpx.AsyncClient, symbol: str) -> Snapshot | None:
+        return None  # every message carries a checksum
+
+    async def fetch_server_time(self, http: httpx.AsyncClient) -> ServerTime | None:
+        return None  # REST time has 1 s resolution; the websocket pong has microseconds
 
     def parse_snapshot(self, raw: bytes, symbol: str, ts_recv: int) -> Snapshot:
         raise ParseError("kraken has no REST book snapshot path")

@@ -1,0 +1,21 @@
+[Unit]
+Description=crypto-lob-alpha market data recorder
+Documentation=https://github.com/avmhdt/crypto-lob-alpha/blob/main/docs/ops.md
+After=network.target chrony.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=ze
+Group=ze
+WorkingDirectory=/home/ze/lob-recorder
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ze/lob-recorder/venv/bin/lob record run --config /home/ze/lob-recorder/config/recorder.yaml
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=90
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

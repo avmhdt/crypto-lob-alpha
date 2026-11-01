@@ -17,6 +17,7 @@ from lob_alpha.record.venues.base import (
     DepthEvent,
     Level,
     ParseError,
+    ServerTime,
     Snapshot,
     TradeEvent,
     VenueEvent,
@@ -38,6 +39,7 @@ class BinanceUsdm:
     book_depth: int | None = None
     keep_raw_strings = False
     contiguous_trade_ids = True
+    checkpoint_kind: str | None = "rest_l2"
 
     def __init__(self, cfg: VenueConfig) -> None:
         self.cfg = cfg
@@ -78,6 +80,19 @@ class BinanceUsdm:
         ts_recv = time.time_ns()
         response.raise_for_status()
         return self.parse_snapshot(response.content, symbol, ts_recv)
+
+    async def fetch_checkpoint(self, http: httpx.AsyncClient, symbol: str) -> Snapshot | None:
+        return await self.fetch_snapshot(http, symbol)
+
+    async def fetch_server_time(self, http: httpx.AsyncClient) -> ServerTime | None:
+        sent_ns = time.time_ns()
+        response = await http.get(f"{self.cfg.rest}/fapi/v1/time")
+        ts_recv = time.time_ns()
+        response.raise_for_status()
+        return ServerTime(sent_ns, int(response.json()["serverTime"]) * MS, ts_recv)
+
+    def clock_ping(self, sent_ns: int) -> bytes | None:
+        return None
 
     def parse_snapshot(self, raw: bytes, symbol: str, ts_recv: int) -> Snapshot:
         try:
