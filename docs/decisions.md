@@ -52,7 +52,8 @@ Owner decisions and agent ambiguity choices for `crypto-lob-alpha`. Owner entrie
 | Time (UTC) | Event |
 |---|---|
 | 2026-11-01 22:11:59 | First capture start. Run `20261101T221159`, version `0.1.0+caf3df3df091`, system-level service enabled. All 21 streams LIVE within a minute. |
-| 2026-11-01 22:11:33 onward | **Clock disturbed.** An agent-recommended chrony change left two chronyd instances steering one clock. `ts_recv` wandered between about +9 ms and -289 ms against NTP, with backward steps. This interval runs until the change is reverted, and its data must not be used for latency or sub-second timing work. |
+| 2026-11-01 22:11:33 to 22:19:47 | **Clock disturbed.** An agent-recommended chrony change left two chronyd instances steering one clock. `ts_recv` wandered between about +9 ms and -289 ms against NTP, with backward steps. Data in this interval must not be used for latency or sub-second timing work. |
+| 2026-11-01 22:19:47 | Change reverted. Over the next three minutes the clock held at 164 to 182 ms fast against NTP, with no jump above 2.7 ms. The recorder ran through it with no restart and no resync. |
 | No earlier than 2026-11-02 20:15 | Planned owner reboot. It applies `instanceIdleTimeout=-1` and tests the boot task. |
 
 The 14-day consecutive capture for AC-W-01 is counted from the first clean start after that reboot. Anything recorded before it is a bonus.
