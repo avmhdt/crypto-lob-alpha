@@ -40,12 +40,22 @@ Owner decisions and agent ambiguity choices for `crypto-lob-alpha`. Owner entrie
 | P-04 | Disk | D: about 903 GB free on 2026-11-01, shared by all projects. |
 | P-07 | GitHub settings | Actions enabled; branch protection on `main` requires `ci` once it exists. |
 | P-08 | `uv` | 0.12.23 in WSL. |
-| P-09 | Time sync | **Not met on 2026-11-01.** chrony was installed, but Ubuntu's starter script runs it with `-x` under WSL, so it only measures. `chronyc tracking` read `System time: 0.170 seconds fast of NTP time`, and four public NTP servers plus Kraken's pong agreed. Fix: `SYNC_IN_CONTAINER="yes"` in `/etc/default/chrony`, an owner step. |
+| P-09 | Time sync | **Not met.** The WSL clock follows the Windows clock, which measured about 165 ms fast against four public NTP servers and Kraken on 2026-11-01. The spec's `chronyc tracking` check misleads here: see [ops.md](ops.md). The fix is on the Windows side and is the owner's call. |
 | P-11 | Coinbase key | Not used (D-07). |
 | P-12 | Tardis key | Not used (D-04). |
 | P-14 | LOBSTER samples | Manual owner download. |
 | P-15 | Alert webhook | Not used (D-14). |
 | P-16 | Bybit | Not answered, so no Bybit connection is opened. |
+
+## Capture log
+
+| Time (UTC) | Event |
+|---|---|
+| 2026-11-01 22:11:59 | First capture start. Run `20261101T221159`, version `0.1.0+caf3df3df091`, system-level service enabled. All 21 streams LIVE within a minute. |
+| 2026-11-01 22:11:33 onward | **Clock disturbed.** An agent-recommended chrony change left two chronyd instances steering one clock. `ts_recv` wandered between about +9 ms and -289 ms against NTP, with backward steps. This interval runs until the change is reverted, and its data must not be used for latency or sub-second timing work. |
+| No earlier than 2026-11-02 20:15 | Planned owner reboot. It applies `instanceIdleTimeout=-1` and tests the boot task. |
+
+The 14-day consecutive capture for AC-W-01 is counted from the first clean start after that reboot. Anything recorded before it is a bonus.
 
 ## Agent choices where the spec was ambiguous or wrong
 
