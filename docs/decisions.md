@@ -40,7 +40,7 @@ Owner decisions and agent ambiguity choices for `crypto-lob-alpha`. Owner entrie
 | P-04 | Disk | D: about 903 GB free on 2026-11-01, shared by all projects. |
 | P-07 | GitHub settings | Actions enabled; branch protection on `main` requires `ci` once it exists. |
 | P-08 | `uv` | 0.12.23 in WSL. |
-| P-09 | Time sync | **Not met.** The WSL clock follows the Windows clock, which measured about 165 ms fast against four public NTP servers and Kraken on 2026-11-01. The spec's `chronyc tracking` check misleads here: see [ops.md](ops.md). The fix is on the Windows side and is the owner's call. |
+| P-09 | Time sync | **Not met yet.** The WSL clock follows the Windows clock, which measured about 165 ms fast against four public NTP servers and Kraken on 2026-11-01. The spec's `chronyc tracking` check misleads here: see [ops.md](ops.md). Windows now syncs from `time.cloudflare.com` and the offset is closing; see the capture log. |
 | P-11 | Coinbase key | Not used (D-07). |
 | P-12 | Tardis key | Not used (D-04). |
 | P-14 | LOBSTER samples | Manual owner download. |
@@ -54,6 +54,9 @@ Owner decisions and agent ambiguity choices for `crypto-lob-alpha`. Owner entrie
 | 2026-11-01 22:11:59 | First capture start. Run `20261101T221159`, version `0.1.0+caf3df3df091`, system-level service enabled. All 21 streams LIVE within a minute. |
 | 2026-11-01 22:11:33 to 22:19:47 | **Clock disturbed.** An agent-recommended chrony change left two chronyd instances steering one clock. `ts_recv` wandered between about +9 ms and -289 ms against NTP, with backward steps. Data in this interval must not be used for latency or sub-second timing work. |
 | 2026-11-01 22:19:47 | Change reverted. Over the next three minutes the clock held at 164 to 182 ms fast against NTP, with no jump above 2.7 ms. The recorder ran through it with no restart and no resync. |
+| 2026-11-01 22:33 | Windows time source changed from `time.windows.com` to `time.cloudflare.com`, because the old route had about 156 ms round trip against 25 ms. No jump above 3.2 ms followed. The offset then closed slowly: about 172 ms fast before, about 132 ms fast at 23:03. It had not settled by then. |
+| 2026-11-01 22:16 to 23:00 | Five `clock` rows in the gap log, all Binance or Coinbase. They are not data gaps: REST probes were biased until the fix in PR #5, so bad readings kept ending and reopening one continuous offset interval. The running service keeps that bias until its next restart. |
+| 2026-11-01 23:00 | First real hourly rollover passed. 39 files closed, all readable, a state record on all three venues at exactly 23:00:00, no write errors and no restart. |
 | No earlier than 2026-11-02 20:15 | Planned owner reboot. It applies `instanceIdleTimeout=-1` and tests the boot task. |
 
 The 14-day consecutive capture for AC-W-01 is counted from the first clean start after that reboot. Anything recorded before it is a bonus.

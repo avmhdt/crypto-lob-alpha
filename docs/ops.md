@@ -117,4 +117,5 @@ Free space only by the retention rules. D: is a spinning disk shared by all proj
 ## Windows
 
 - Windows Update is paused until 2026-12-06. Extend the pause before then if capture is still running.
+- Windows syncs from `time.cloudflare.com`. To undo that, run `w32tm /config /manualpeerlist:"time.windows.com,0x9" /syncfromflags:manual /update` in an administrator terminal. `/config` fails without admin rights.
 - Sleep is off on AC.
