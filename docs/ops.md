@@ -26,13 +26,9 @@ sudo systemctl enable --now lob-recorder
 
 ## Clock
 
-`ts_recv` is only as good as the WSL clock, and chrony cannot correct that clock until `/etc/default/chrony` has `SYNC_IN_CONTAINER="yes"`. Check it with:
+Do not set `SYNC_IN_CONTAINER="yes"` in `/etc/default/chrony`. All WSL2 distros share one kernel clock, and a second chronyd outside this distro, most likely Docker Desktop's, already steers it to the Windows clock through the `PHC0` refclock. Letting Ubuntu's chrony steer as well makes the two fight: on 2026-11-01 the clock swung between +9 ms and -289 ms against NTP within seconds.
 
-```bash
-chronyc tracking | grep "System time"
-```
-
-Under 5 ms is healthy. `lob record status` also shows the measured offset per venue, and DQ-15 logs a `clock` interval when it stays above 50 ms. A large offset never stops capture.
+`chronyc tracking` cannot be trusted alone here. Both instances answer on `127.0.0.1:323`, so replies alternate, and the `PHC0` one compares itself only to Windows. Check the real offset in `lob record status`, which measures against each venue. `ts_recv` follows the Windows clock, and a large offset never stops capture: DQ-15 logs a `clock` interval.
 
 ## Check
 
