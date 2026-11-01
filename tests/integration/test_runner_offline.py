@@ -174,6 +174,30 @@ async def test_coinbase_rest_checkpoint_and_clock() -> None:
     assert sample.ts_recv >= sample.sent_ns
 
 
+async def test_clock_probe_keeps_connection_setup_out_of_the_rtt() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json={"epoch": 1793567025.462})
+
+    adapter = Coinbase(VenueConfig(rest="https://x", symbols=["BTC-USD"]))
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        await adapter.fetch_server_time(http)
+    assert calls == 2
+
+
+async def test_clock_probe_failure_on_the_warm_up_call_raises() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503)
+
+    adapter = Coinbase(VenueConfig(rest="https://x", symbols=["BTC-USD"]))
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        with pytest.raises(httpx.HTTPStatusError):
+            await adapter.fetch_server_time(http)
+
+
 def write_config(cwd: Path, venue: str, cfg: VenueConfig) -> Path:
     import yaml
 

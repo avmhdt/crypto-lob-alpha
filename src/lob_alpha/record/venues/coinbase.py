@@ -24,6 +24,7 @@ from lob_alpha.record.venues.base import (
     TradeEvent,
     VenueEvent,
     rfc3339_ns,
+    timed_get,
 )
 from lob_alpha.settings import VenueConfig
 
@@ -78,10 +79,7 @@ class Coinbase:
         return self.parse_snapshot(response.content, symbol, ts_recv)
 
     async def fetch_server_time(self, http: httpx.AsyncClient) -> ServerTime | None:
-        sent_ns = time.time_ns()
-        response = await http.get(f"{self.cfg.rest}/time")
-        ts_recv = time.time_ns()
-        response.raise_for_status()
+        sent_ns, response, ts_recv = await timed_get(http, f"{self.cfg.rest}/time")
         return ServerTime(
             sent_ns, round(float(response.json()["epoch"]) * 1e3) * 1_000_000, ts_recv
         )
