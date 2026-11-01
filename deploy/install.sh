@@ -27,7 +27,7 @@ fi
 data_root="$HOME/data/crypto-lob-alpha"
 mkdir -p "$data_root"
 if [ ! -e "$repo/data" ]; then
-  ln -s "$data_root" "$repo/data"
+  ln -s "$data_root" "$repo/data" || echo "could not link $repo/data; the recorder does not need it"
 fi
 
 echo "installed $sha to $target"

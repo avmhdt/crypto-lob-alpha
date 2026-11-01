@@ -393,9 +393,7 @@ class VenueRunner:
             task.cancel()
         pending = self.tasks + list(self.lives.values()) + list(self.background)
         await asyncio.gather(*pending, return_exceptions=True)
-        now = time.time_ns()
-        for stream in self.pipeline.streams():
-            stream.flush_gap(now)
+        self.pipeline.flush_gaps(time.time_ns())
         await self.http.aclose()
 
     def status(self, now: int) -> dict[str, Any]:

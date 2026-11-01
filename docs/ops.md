@@ -24,6 +24,16 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now lob-recorder
 ```
 
+## Clock
+
+`ts_recv` is only as good as the WSL clock, and chrony cannot correct that clock until `/etc/default/chrony` has `SYNC_IN_CONTAINER="yes"`. Check it with:
+
+```bash
+chronyc tracking | grep "System time"
+```
+
+Under 5 ms is healthy. `lob record status` also shows the measured offset per venue, and DQ-15 logs a `clock` interval when it stays above 50 ms. A large offset never stops capture.
+
 ## Check
 
 ```bash

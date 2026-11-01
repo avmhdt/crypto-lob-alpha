@@ -40,7 +40,7 @@ Owner decisions and agent ambiguity choices for `crypto-lob-alpha`. Owner entrie
 | P-04 | Disk | D: about 903 GB free on 2026-11-01, shared by all projects. |
 | P-07 | GitHub settings | Actions enabled; branch protection on `main` requires `ci` once it exists. |
 | P-08 | `uv` | 0.12.23 in WSL. |
-| P-09 | Time sync | chrony running, stratum 1 from the hypervisor clock. |
+| P-09 | Time sync | **Not met on 2026-11-01.** chrony was installed, but Ubuntu's starter script runs it with `-x` under WSL, so it only measures. `chronyc tracking` read `System time: 0.170 seconds fast of NTP time`, and four public NTP servers plus Kraken's pong agreed. Fix: `SYNC_IN_CONTAINER="yes"` in `/etc/default/chrony`, an owner step. |
 | P-11 | Coinbase key | Not used (D-07). |
 | P-12 | Tardis key | Not used (D-04). |
 | P-14 | LOBSTER samples | Manual owner download. |
