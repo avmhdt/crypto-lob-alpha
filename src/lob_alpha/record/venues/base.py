@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import enum
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -166,6 +167,21 @@ class VenueAdapter(Protocol):
     def parse(self, raw: bytes, ts_recv: int) -> list[VenueEvent]: ...
     def bridge(self, snapshot: Snapshot, buffered: Sequence[DepthEvent]) -> BridgeResult: ...
     def check(self, prev: DepthEvent | None, ev: DepthEvent, book: BookL2) -> CheckResult: ...
+
+
+async def timed_get(http: httpx.AsyncClient, url: str) -> tuple[int, httpx.Response, int]:
+    """GET twice and time the second call. Returns (sent_ns, response, ts_recv).
+
+    A probe every 60 s outlives the client's keep-alive, so a single GET would pay for TCP
+    and TLS setup. That time sits before the server reads its clock, so it would count as
+    round trip and bias the offset by about one RTT.
+    """
+    (await http.get(url)).raise_for_status()
+    sent_ns = time.time_ns()
+    response = await http.get(url)
+    ts_recv = time.time_ns()
+    response.raise_for_status()
+    return sent_ns, response, ts_recv
 
 
 @lru_cache(maxsize=4096)

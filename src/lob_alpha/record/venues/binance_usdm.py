@@ -21,6 +21,7 @@ from lob_alpha.record.venues.base import (
     Snapshot,
     TradeEvent,
     VenueEvent,
+    timed_get,
 )
 from lob_alpha.settings import VenueConfig
 
@@ -85,10 +86,7 @@ class BinanceUsdm:
         return await self.fetch_snapshot(http, symbol)
 
     async def fetch_server_time(self, http: httpx.AsyncClient) -> ServerTime | None:
-        sent_ns = time.time_ns()
-        response = await http.get(f"{self.cfg.rest}/fapi/v1/time")
-        ts_recv = time.time_ns()
-        response.raise_for_status()
+        sent_ns, response, ts_recv = await timed_get(http, f"{self.cfg.rest}/fapi/v1/time")
         return ServerTime(sent_ns, int(response.json()["serverTime"]) * MS, ts_recv)
 
     def clock_ping(self, sent_ns: int) -> bytes | None:
