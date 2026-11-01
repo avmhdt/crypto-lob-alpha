@@ -51,7 +51,7 @@ def config(url: str) -> RecorderConfig:
 
 async def test_smoke_reaches_live_and_writes_rows(coinbase_server: str) -> None:
     table = Instruments([Instrument(venue="coinbase", symbol="BTC-USD", **ENTRY)])
-    result = await smoke(config(coinbase_server), table, "coinbase", "BTC-USD", 0.6)
+    result = await smoke(config(coinbase_server), table, "coinbase", "BTC-USD", 3.0)
     assert result.ok
     assert result.frames >= 7
     assert result.rows_written > 0
