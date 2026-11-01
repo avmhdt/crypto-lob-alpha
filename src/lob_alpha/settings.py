@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     lob_min_free_gb: float = Field(default=20.0, alias="LOB_MIN_FREE_GB")
     lob_alert_webhook_url: str = Field(default="", alias="LOB_ALERT_WEBHOOK_URL")
 
+    @field_validator("*", mode="before")
+    @classmethod
+    def _drop_comment_values(cls, value: Any) -> Any:
+        # dotenv keeps `KEY=   # note` as the value "# note" when the value itself is empty.
+        return "" if isinstance(value, str) and value.lstrip().startswith("#") else value
+
     @property
     def data_dir(self) -> Path:
         """Root of the Parquet lake: `LOB_DATA_DIR`, or `DATA_ROOT` when that is empty."""

@@ -40,7 +40,7 @@ Owner decisions and agent ambiguity choices for `crypto-lob-alpha`. Owner entrie
 | P-04 | Disk | D: about 903 GB free on 2026-11-01, shared by all projects. |
 | P-07 | GitHub settings | Actions enabled; branch protection on `main` requires `ci` once it exists. |
 | P-08 | `uv` | 0.12.23 in WSL. |
-| P-09 | Time sync | chrony running, stratum 1 from the hypervisor clock. |
+| P-09 | Time sync | **Not met on 2026-11-01.** chrony was installed, but Ubuntu's starter script runs it with `-x` under WSL, so it only measures. `chronyc tracking` read `System time: 0.170 seconds fast of NTP time`, and four public NTP servers plus Kraken's pong agreed. Fix: `SYNC_IN_CONTAINER="yes"` in `/etc/default/chrony`, an owner step. |
 | P-11 | Coinbase key | Not used (D-07). |
 | P-12 | Tardis key | Not used (D-04). |
 | P-14 | LOBSTER samples | Manual owner download. |
@@ -67,3 +67,11 @@ Dates are when the choice was made. Each follows spec rule 9: the simplest optio
 | 2026-11-01 | Silence watchdog scope | 30 s silence is per connection and per book stream, never per trades stream. | A quiet symbol can go 30 s without a trade while its connection is healthy. |
 | 2026-11-01 | Make-before-break scope | Binance only. | Binance is the only venue with a documented connection lifetime (24 h). |
 | 2026-11-01 | Bybit adapter | Not written. | FR-05 is a Could, and P-16 is unanswered. |
+| 2026-11-01 | Raw archive contents | Frames per connection, plus an hourly `control` file holding REST bodies, connection events, timers and clock probes. | The spec asks for `ts_recv\tpayload` frames, but row-identical recovery needs every input of the state machine. Recovery replays them through the same `VenuePipeline`. |
+| 2026-11-01 | Hourly state record | At the first input of each hour, per-stream counters go to the control file, and for Kraken the book too. | One hour can then be replayed alone, even after older raw days are pruned. Only Kraken's rows depend on book contents, through the checksum. |
+| 2026-11-01 | Interrupted hours | The recorder runs `lob record recover --interrupted` at low priority two minutes after it starts. | A crash leaves the hour only in the raw archive, which is pruned after 7 days. An unattended capture should not depend on someone noticing. |
+| 2026-11-01 | Runtime location | The service runs from a built venv in `~/lob-recorder`, not from the repo. | Merged code must not change a running recorder (project rule 6), and the recorder should not depend on `/mnt/d`. |
+| 2026-11-01 | `run_id` and restart parts | Run id is the UTC start second. Parts within an hour use `-rN` in the order runs wrote them, and the part after a killed run skips its leftover `.tmp`. | `recover` derives the same names, so it fills exactly the file a killed run failed to close. |
+| 2026-11-01 | Bridging across a top of hour | Recovering the later hour can differ for the few diffs buffered across the boundary. | The state record does not carry the sync buffer. It needs a resync in the same second as an hour boundary and a crash in that hour. Those rows stay in the raw archive. |
+| 2026-11-01 | `.env` comment values | A value starting with `#` is treated as empty. | `python-dotenv` keeps `KEY=   # note` as the value `# note`, and `.env.example` is written that way. |
+| 2026-11-01 | Planned capture length | `health.planned_capture_days: 28`, added to `config/recorder.yaml` defaults. | `lob record status --disk` needs an end date to project to, and R-11 targets at least 28 days. |

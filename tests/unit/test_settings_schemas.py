@@ -48,6 +48,16 @@ def test_env_example_has_exactly_the_documented_keys() -> None:
     ]  # fmt: skip
 
 
+def test_env_example_loads_as_a_real_env_file() -> None:
+    loaded = Settings(_env_file=REPO / ".env.example")
+    assert loaded.lob_data_dir == ""
+    assert loaded.lob_alert_webhook_url == ""
+    assert loaded.data_dir == Path("~/data/crypto-lob-alpha").expanduser()
+    assert loaded.venues == ["binance-usdm", "coinbase", "kraken"]
+    assert loaded.lob_raw_archive_days == 7
+    assert loaded.lob_min_free_gb == 20.0
+
+
 def test_recorder_config_expands_env_values() -> None:
     config = load_recorder_config(
         REPO / "config" / "recorder.yaml",

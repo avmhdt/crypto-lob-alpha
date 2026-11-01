@@ -803,6 +803,14 @@ class VenuePipeline:
             self.ctx.emit_gap("*", "book", self.clock_bad_since, ts, "clock", None, None)
         self.clock_strikes = 0
 
+    def flush_gaps(self, ts: int) -> None:
+        """Write every interval still open at shutdown, including a clock interval."""
+        for stream in self.streams():
+            stream.flush_gap(ts)
+        if self.clock_strikes >= CLOCK_STRIKES:
+            self.ctx.emit_gap("*", "book", self.clock_bad_since, ts, "clock", None, None)
+            self.clock_strikes = 0
+
     # ---- timers ---------------------------------------------------------------------------
 
     def timers(self, now: int) -> tuple[list[dict[str, Any]], list[Action]]:
@@ -878,6 +886,9 @@ class VenuePipeline:
         }
         self.active = dict(state["active"])
         self.standby = dict(state["standby"])
+        for logical in self.standby:
+            for book in self._logical_streams(logical)[0]:
+                book.overlap = True
 
     def status(self, now: int) -> dict[str, Any]:
         """Snapshot for `status.json`."""

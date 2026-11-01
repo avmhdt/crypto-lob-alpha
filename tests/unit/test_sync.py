@@ -265,6 +265,17 @@ def test_clock_offset_past_the_limit_five_times_logs_a_clock_gap(sink: MemorySin
     assert len(sink.clocks) == 6
 
 
+def test_a_clock_interval_open_at_shutdown_is_still_written(sink: MemorySink) -> None:
+    pipeline = make(sink)
+    for i in range(5):
+        ts = T0 + i * 60 * SEC
+        pipeline.ingest_control(
+            ts, {"k": "clock", "server_time_ns": ts + 100_000_000, "sent_ns": ts}
+        )
+    pipeline.flush_gaps(T0 + 400 * SEC)
+    assert [(g.reason, g.start_ns) for g in sink.gaps] == [("clock", T0)]
+
+
 def test_four_bad_clock_probes_are_tolerated(sink: MemorySink) -> None:
     pipeline = make(sink)
     for i in range(4):

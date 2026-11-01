@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Sequence
 from typing import Any
 
@@ -17,6 +18,7 @@ from lob_alpha.record.venues.base import (
     Heartbeat,
     Level,
     ParseError,
+    ServerTime,
     Snapshot,
     SnapshotEvent,
     TradeEvent,
@@ -39,6 +41,7 @@ class Coinbase:
     book_depth: int | None = None
     keep_raw_strings = False
     contiguous_trade_ids = True
+    checkpoint_kind: str | None = "rest_l2"
 
     def __init__(self, cfg: VenueConfig) -> None:
         self.cfg = cfg
@@ -66,6 +69,25 @@ class Coinbase:
 
     async def fetch_snapshot(self, http: httpx.AsyncClient, symbol: str) -> Snapshot | None:
         return None  # the L2 snapshot arrives on the websocket after subscribe
+
+    async def fetch_checkpoint(self, http: httpx.AsyncClient, symbol: str) -> Snapshot | None:
+        url = f"{self.cfg.rest}/products/{symbol}/book"
+        response = await http.get(url, params={"level": 2})
+        ts_recv = time.time_ns()
+        response.raise_for_status()
+        return self.parse_snapshot(response.content, symbol, ts_recv)
+
+    async def fetch_server_time(self, http: httpx.AsyncClient) -> ServerTime | None:
+        sent_ns = time.time_ns()
+        response = await http.get(f"{self.cfg.rest}/time")
+        ts_recv = time.time_ns()
+        response.raise_for_status()
+        return ServerTime(
+            sent_ns, round(float(response.json()["epoch"]) * 1e3) * 1_000_000, ts_recv
+        )
+
+    def clock_ping(self, sent_ns: int) -> bytes | None:
+        return None
 
     def parse_snapshot(self, raw: bytes, symbol: str, ts_recv: int) -> Snapshot:
         """Parse the REST `/book?level=2` body used for checkpoints."""

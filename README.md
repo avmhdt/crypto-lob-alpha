@@ -2,7 +2,7 @@
 
 > Record real order books, rebuild them correctly, and find short-horizon signals that survive fees and latency.
 
-**Status:** planning
+**Status:** capture (M2). Research results arrive in the memo at M7.
 
 | | |
 |---|---|

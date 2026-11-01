@@ -1,0 +1,16 @@
+# Alternative to the systemd unit. Never run both: they would record the same data twice.
+# Run from WSL so the bind mount is the ext4 path, not a Docker Desktop volume on E:.
+services:
+  lob-recorder:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    stop_grace_period: 90s
+    environment:
+      DATA_ROOT: /data
+    env_file:
+      - path: ../.env
+        required: false
+    volumes:
+      - ${DATA_ROOT:?set DATA_ROOT to the WSL ext4 path}:/data
