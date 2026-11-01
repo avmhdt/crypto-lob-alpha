@@ -40,3 +40,14 @@ Thumbs.db
 
 # Local build spec (kept out of the public repo)
 SPEC.html
+
+# data/ may be a symlink into DATA_ROOT, which the data/ rule above does not match
+/data
+
+# Test and tool caches
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.hypothesis/
+.benchmarks/

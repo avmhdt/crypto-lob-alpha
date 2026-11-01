@@ -1,0 +1,39 @@
+version: 1
+venue_set: ${LOB_VENUE_SET}            # comma-separated venue ids; default binance-usdm,coinbase,kraken (D-01)
+writer:
+  rotation: hourly
+  compression: zstd
+  compression_level: 3
+  row_group_rows: 250000
+  flush_interval_s: 60
+raw_archive: {enabled: true, retention_days: ${LOB_RAW_ARCHIVE_DAYS}, flush_interval_s: 1}
+health:
+  stale_after_s: 30
+  backoff_initial_s: 1
+  backoff_max_s: 60
+  proactive_reconnect_h: 23            # make-before-break before the 24 h Binance limit
+  min_free_gb: ${LOB_MIN_FREE_GB}
+  clock_probe_interval_s: 60
+  status_interval_s: 10
+venues:
+  binance-usdm:
+    ws_public: wss://fstream.binance.com/public/stream
+    ws_market: wss://fstream.binance.com/market/stream
+    rest: https://fapi.binance.com
+    symbols: [BTCUSDT, ETHUSDT, SOLUSDT]
+    streams: {depth: "{s}@depth@100ms", bbo: "{s}@bookTicker", trades: "{s}@aggTrade"}
+    snapshot_limit: 1000
+    checkpoint_interval_s: 600
+  kraken:
+    ws: wss://ws.kraken.com/v2
+    rest: https://api.kraken.com
+    symbols: [BTC/USD, ETH/USD, SOL/USD]
+    book_depth: 1000                   # allowed: 10, 25, 100, 500, 1000 (docs read 2026-11-01)
+    checksum_levels: 10
+  coinbase:
+    ws: wss://ws-feed.exchange.coinbase.com
+    rest: https://api.exchange.coinbase.com
+    symbols: [BTC-USD, ETH-USD, SOL-USD]
+    channels: [level2_batch, matches, heartbeat]
+    full_channel: false                # D-07; needs COINBASE_API_* keys
+    checkpoint_interval_s: 600
