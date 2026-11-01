@@ -1,0 +1,69 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: lint, types, tests (ubuntu, py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy src
+      - run: uv run pytest -m "not data and not network" --cov=lob_alpha --cov-fail-under=85
+
+  windows:
+    name: unit and property tests (windows, py3.12)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked
+      - run: uv run pytest tests/unit tests/property -m "not data and not network"
+
+  repo-hygiene:
+    name: no data or secrets in git
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reject tracked data files
+        run: |
+          if git ls-files | grep -E '(\.parquet$|\.zst$|\.csv\.gz$|^data/)'; then
+            echo "tracked data file" >&2
+            exit 1
+          fi
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  ci:
+    name: ci
+    if: always()
+    needs: [checks, windows, repo-hygiene]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All jobs passed
+        run: |
+          test "${{ needs.checks.result }}" = success
+          test "${{ needs.windows.result }}" = success
+          test "${{ needs.repo-hygiene.result }}" = success
