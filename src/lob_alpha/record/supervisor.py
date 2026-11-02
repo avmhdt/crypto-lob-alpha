@@ -9,6 +9,7 @@ import random
 import signal
 import socket
 import sys
+import threading
 import time
 from collections import deque
 from collections.abc import Awaitable, Callable
@@ -448,6 +449,16 @@ class Recorder:
         self.disk: health.DiskState = health.disk_state(self.data_dir)
         self.runners = [VenueRunner(self, venue) for venue in config.venue_set]
         self.last_frames: dict[str, int] = {}
+        self._status_lock = threading.Lock()
+        self._status_final = False
+
+    def write_status(self, payload: dict[str, Any], *, final: bool = False) -> None:
+        """Write `status.json`. A periodic write still on its thread cannot undo the final one."""
+        with self._status_lock:
+            if self._status_final:
+                return
+            self._status_final = final
+            health.write_json_atomic(self.data_dir / health.STATUS_FILE, payload)
 
     def request_stop(self) -> None:
         self.stop_event.set()
@@ -484,10 +495,9 @@ class Recorder:
         }
 
     async def _status_loop(self) -> None:
-        path = self.data_dir / health.STATUS_FILE
         while True:
             await asyncio.sleep(self.config.health.status_interval_s)
-            await asyncio.to_thread(health.write_json_atomic, path, self.status())
+            await asyncio.to_thread(self.write_status, self.status())
 
     async def _flush_loop(self) -> None:
         while True:
@@ -626,7 +636,7 @@ class Recorder:
         await asyncio.to_thread(self.sink.close)
         await asyncio.to_thread(self.raw.close)
         final = self.status()
-        health.write_json_atomic(self.data_dir / health.STATUS_FILE, final)
+        self.write_status(final, final=True)
         log.info("recorder_stopped", run=self.run_id, rows_written=self.sink.rows_written)
         if crashed is not None:  # stop cleanly, then let systemd restart a whole process
             raise RuntimeError("recorder task crashed") from crashed.exception()
