@@ -6,7 +6,8 @@ Endpoints, channels and sync rules as verified on **2026-11-01**, against the of
 
 | Item | Value |
 |---|---|
-| Depth and bbo | `wss://fstream.binance.com/public/stream?streams=<s>@depth@100ms/<s>@bookTicker/...` |
+| Depth | `wss://fstream.binance.com/public/stream?streams=<s>@depth@100ms/...` |
+| bbo | `wss://fstream.binance.com/public/stream?streams=<s>@bookTicker/...`, a separate connection from depth |
 | Trades | `wss://fstream.binance.com/market/stream?streams=<s>@aggTrade/...` |
 | REST | `https://fapi.binance.com`: `/fapi/v1/depth?limit=1000` (weight 20), `/fapi/v1/time`, `/fapi/v1/exchangeInfo` |
 | Limits | 24 h connection lifetime; server ping every 3 min, pong within 10 min; 10 incoming messages/s; 1024 streams per connection; 2400 request weight/min (from `exchangeInfo`) |

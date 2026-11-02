@@ -48,7 +48,8 @@ class BinanceUsdm:
     def connections(self, symbols: Sequence[str]) -> list[ConnectionSpec]:
         lower = [s.lower() for s in symbols]
         depth, bbo, trades = (self.cfg.streams[k] for k in ("depth", "bbo", "trades"))
-        public = "/".join(f"{tpl.format(s=s)}" for s in lower for tpl in (depth, bbo))
+        public = "/".join(depth.format(s=s) for s in lower)
+        ticker = "/".join(bbo.format(s=s) for s in lower)
         market = "/".join(trades.format(s=s) for s in lower)
         return [
             ConnectionSpec(
@@ -56,6 +57,14 @@ class BinanceUsdm:
                 f"{self.cfg.ws_public}?streams={public}",
                 tuple(symbols),
                 book=True,
+                trades=False,
+            ),
+            # bookTicker is most of the message rate, so a drop here leaves the book LIVE.
+            ConnectionSpec(
+                "ticker",
+                f"{self.cfg.ws_public}?streams={ticker}",
+                tuple(symbols),
+                book=False,
                 trades=False,
                 bbo=True,
             ),

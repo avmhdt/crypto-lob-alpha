@@ -167,18 +167,21 @@ def _split_name(path: Path) -> tuple[str, str]:
 
 
 def read_lines(path: Path) -> Iterator[bytes]:
-    """Lines of one archive file, stopping cleanly at a truncated tail."""
+    """Lines of one archive file, stopping cleanly at a truncated tail.
+
+    Files of dead connections and killed runs end without a zstd frame footer. `stream_reader`
+    can silently lose the end of such a file, so this feeds a `decompressobj` instead, which
+    returns everything decodable.
+    """
+    decoder = zstandard.ZstdDecompressor().decompressobj(read_across_frames=True)
     tail = b""
     with path.open("rb") as handle:
-        reader = zstandard.ZstdDecompressor().stream_reader(handle, read_across_frames=True)
-        while True:
+        while chunk := handle.read(1 << 20):
             try:
-                chunk = reader.read(1 << 20)
+                data = decoder.decompress(chunk)
             except zstandard.ZstdError:
                 break
-            if not chunk:
-                break
-            lines = (tail + chunk).split(b"\n")
+            lines = (tail + data).split(b"\n")
             tail = lines.pop()
             yield from lines
 
