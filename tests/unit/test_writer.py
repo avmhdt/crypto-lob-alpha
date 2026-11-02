@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 
@@ -8,6 +9,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from lob_alpha import schemas
+from lob_alpha.record.durable import has_parquet_footer
 from lob_alpha.record.sync import GapRow
 from lob_alpha.record.venues.base import BboEvent, TradeEvent
 from lob_alpha.record.writer import ParquetSink, free_part, hour_stem, partition_dir
@@ -97,6 +99,32 @@ def test_restart_within_the_hour_gets_an_r_suffix_and_skips_leftover_tmp(tmp_pat
         "part-21-r2.parquet",
         "part-21.parquet",
     ]
+
+
+def test_closing_syncs_the_file_before_the_rename(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    order: list[str] = []
+    real_fsync, real_replace = os.fsync, os.replace
+    monkeypatch.setattr(os, "fsync", lambda fd: (order.append("fsync"), real_fsync(fd))[1])
+    monkeypatch.setattr(
+        os, "replace", lambda a, b: (order.append("replace"), real_replace(a, b))[1]
+    )
+    sink = ParquetSink(tmp_path, CFG)
+    book(sink)
+    sink.close()
+    assert order[:2] == ["fsync", "replace"]
+
+
+def test_footer_check_tells_a_whole_file_from_a_cut_one(tmp_path: Path) -> None:
+    sink = ParquetSink(tmp_path, CFG)
+    book(sink)
+    sink.close()
+    path = next(tmp_path.rglob("*.parquet"))
+    assert has_parquet_footer(path)
+    path.write_bytes(path.read_bytes()[:100])
+    assert not has_parquet_footer(path)
+    assert not has_parquet_footer(tmp_path / "missing.parquet")
 
 
 def test_free_part_counts_up(tmp_path: Path) -> None:

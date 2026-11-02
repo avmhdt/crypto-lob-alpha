@@ -28,7 +28,7 @@ sudo systemctl enable --now lob-recorder
 
 Do not set `SYNC_IN_CONTAINER="yes"` in `/etc/default/chrony`. All WSL2 distros share one kernel clock, and a second chronyd outside this distro, most likely Docker Desktop's, already steers it to the Windows clock through the `PHC0` refclock. Letting Ubuntu's chrony steer as well makes the two fight: on 2026-11-01 the clock swung between +9 ms and -289 ms against NTP within seconds.
 
-`chronyc tracking` cannot be trusted alone here. Both instances answer on `127.0.0.1:323`, so replies alternate, and the `PHC0` one compares itself only to Windows. Check the real offset in `lob record status`, which measures against each venue. `ts_recv` follows the Windows clock, and a large offset never stops capture: DQ-15 logs a `clock` interval.
+`chronyc tracking` cannot be trusted alone here. Both instances answer on `127.0.0.1:323`, so replies alternate, and the `PHC0` one compares itself only to Windows. Check the real offset in `lob record status`, which measures against each venue. Windows corrects its clock slowly and restarts that correction at every boot, so expect about 160 ms fast after a reboot, under 50 ms after about 2 hours, and under 5 ms after about 17 hours. `ts_recv` follows the Windows clock, and a large offset never stops capture: DQ-15 logs a `clock` interval.
 
 ## Check
 
@@ -80,7 +80,7 @@ For one venue and hour:
 venv/bin/lob record recover --from-raw --venue kraken --date 2026-11-02 --hour 14
 ```
 
-Closed files are left alone unless you add `--replace`. Recovery needs the raw archive, which is pruned after 7 days, so run it within that window. Do it before relying on a parser fix too: `--replace` re-parses raw frames with the current code.
+Closed files are left alone unless you add `--replace`, except a part with no Parquet footer, which `--interrupted` finds and rebuilds. A host crash can leave one. Recovery needs the raw archive, which is pruned after 7 days, so run it within that window. Do it before relying on a parser fix too: `--replace` re-parses raw frames with the current code.
 
 ## Publish the gap log
 

@@ -11,6 +11,7 @@ from urllib.parse import unquote
 
 from lob_alpha.instruments import Instruments
 from lob_alpha.record import health
+from lob_alpha.record.durable import has_parquet_footer
 from lob_alpha.record.raw_archive import hour_files, read_hour
 from lob_alpha.record.sync import VenuePipeline
 from lob_alpha.record.venues.registry import make_adapter
@@ -35,7 +36,7 @@ class RecoverNamer:
         index = order.setdefault(run, len(order))
         name = f"{hour_stem}.parquet" if index == 0 else f"{hour_stem}-r{index}.parquet"
         path = directory / name
-        if path.exists() and not self.replace:
+        if path.exists() and not self.replace and has_parquet_footer(path):
             if path not in self.skipped:
                 self.skipped.append(path)
             return None
@@ -137,13 +138,15 @@ def recover(
 
 
 def interrupted_hours(data_dir: Path) -> list[tuple[str, date, int]]:
-    """Venue-hours with a `.parquet.tmp` on disk.
+    """Venue-hours with a `.parquet.tmp` on disk, or a closed part with no footer.
 
     The live run's own files show up here too. That is harmless: `recover` skips the active
-    run, so such an hour only rebuilds what older runs left behind.
+    run, so such an hour only rebuilds what older runs left behind. A missing footer means
+    the host went down after the rename, before the file's last pages reached the disk.
     """
+    broken = [p for p in data_dir.rglob("part-*.parquet") if not has_parquet_footer(p)]
     found: set[tuple[str, date, int]] = set()
-    for path in data_dir.rglob("part-*.parquet.tmp"):
+    for path in [*data_dir.rglob("part-*.parquet.tmp"), *broken]:
         match = TMP_PATTERN.search(path.as_posix())
         if match is not None and "/gaps/" not in path.as_posix():
             venue, day_text, hour_text = match.groups()

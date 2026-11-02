@@ -7,7 +7,6 @@ other projects, so this matters.
 
 from __future__ import annotations
 
-import os
 import queue
 import threading
 import time
@@ -22,6 +21,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from lob_alpha import schemas
+from lob_alpha.record.durable import durable_replace
 from lob_alpha.record.sync import GapRow
 from lob_alpha.record.venues.base import BboEvent, Level, TradeEvent
 from lob_alpha.settings import WriterConfig
@@ -367,7 +367,7 @@ class ParquetSink:
         if handle is None:
             return
         handle.writer.close()
-        os.replace(handle.tmp, handle.final)
+        durable_replace(handle.tmp, handle.final)
         self.files_closed += 1
 
     def _write_gap(self, row: GapRow) -> None:
@@ -379,4 +379,4 @@ class ParquetSink:
         data = {f.name: [getattr(row, f.name)] for f in schemas.GAPS}
         table = pa.Table.from_pydict(data, schema=schemas.GAPS)
         pq.write_table(table, tmp, compression=self.cfg.compression)
-        os.replace(tmp, final)
+        durable_replace(tmp, final)

@@ -265,6 +265,37 @@ def test_cli_recover_interrupted_and_gaplog(
     assert (tmp_path / "c.csv").exists()
 
 
+def test_a_closed_file_with_no_footer_is_found_and_rebuilt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """What a VM shutdown left on 2026-11-02: a final name on a file missing its last pages."""
+    data = tmp_path / "data"
+    data.mkdir()
+
+    async def body() -> None:
+        recorder, runner = offline_recorder(data, "kraken", kraken_cfg())
+        runner.hour = HOUR_END // (3600 * SEC)
+        runner.control({"k": "conn_open", "conn": "ws.g0", "logical": "ws"}, ts=HOUR_END + 1)
+        for i, raw in enumerate(frames("kraken.jsonl")):
+            runner.frame("ws.g0", HOUR_END + 2 + i, raw)
+        await close(recorder, runner)
+
+    asyncio.run(body())
+    closed = next((data / "book_l2").rglob("*.parquet"))
+    before = parquet_rows(data, "book_l2")
+    closed.write_bytes(closed.read_bytes()[:4096])
+    assert interrupted_hours(data) == [("kraken", DAY, 15)]
+    config = write_config(tmp_path / "cwd", "kraken", kraken_cfg())
+    monkeypatch.setenv("DATA_ROOT", str(data))
+    monkeypatch.setenv("LOB_VENUE_SET", "kraken")
+    monkeypatch.chdir(tmp_path / "cwd")
+    args = ["record", "recover", "--from-raw", "--interrupted", "--config", str(config)]
+    outcome = CliRunner().invoke(cli.app, args)
+    assert outcome.exit_code == 0, outcome.output
+    assert parquet_rows(data, "book_l2") == before
+    assert interrupted_hours(data) == []
+
+
 def test_status_without_a_status_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATA_ROOT", str(tmp_path))
     assert CliRunner().invoke(cli.app, ["record", "status"]).exit_code == 1
