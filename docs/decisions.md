@@ -40,7 +40,7 @@ Owner decisions and agent ambiguity choices for `crypto-lob-alpha`. Owner entrie
 | P-04 | Disk | D: about 903 GB free on 2026-11-01, shared by all projects. |
 | P-07 | GitHub settings | Actions enabled; branch protection on `main` requires `ci` once it exists. |
 | P-08 | `uv` | 0.12.23 in WSL. |
-| P-09 | Time sync | **Not met yet.** The WSL clock follows the Windows clock, which measured about 165 ms fast against four public NTP servers and Kraken on 2026-11-01. The spec's `chronyc tracking` check misleads here: see [ops.md](ops.md). Windows now syncs from `time.cloudflare.com` and the offset is closing; see the capture log. |
+| P-09 | Time sync | **Close, not met.** Target is under 5 ms. Measured 6 to 11 ms fast against NTP on 2026-11-02, after Windows moved to `time.cloudflare.com`; it was about 165 ms fast before. The WSL clock follows the Windows clock, and the spec's `chronyc tracking` check misleads here: see [ops.md](ops.md). |
 | P-11 | Coinbase key | Not used (D-07). |
 | P-12 | Tardis key | Not used (D-04). |
 | P-14 | LOBSTER samples | Manual owner download. |
@@ -57,6 +57,9 @@ Owner decisions and agent ambiguity choices for `crypto-lob-alpha`. Owner entrie
 | 2026-11-01 22:33 | Windows time source changed from `time.windows.com` to `time.cloudflare.com`, because the old route had about 156 ms round trip against 25 ms. No jump above 3.2 ms followed. The offset then closed slowly: about 172 ms fast before, about 132 ms fast at 23:03. It had not settled by then. |
 | 2026-11-01 22:16 to 23:00 | Five `clock` rows in the gap log, all Binance or Coinbase. They are not data gaps: REST probes were biased until the fix in PR #5, so bad readings kept ending and reopening one continuous offset interval. The running service keeps that bias until its next restart. |
 | 2026-11-01 23:00 | First real hourly rollover passed. 39 files closed, all readable, a state record on all three venues at exactly 23:00:00, no write errors and no restart. |
+| 2026-11-01 23:13 to 2026-11-02 02:53 | **Binance `public` connection dropped 27 times.** That connection carries depth and bookTicker. The densest stretch was 01:08:58 to 01:36:49. Up to 03:00 the BTCUSDT book had lost 111 s, 99.36% coverage since the start, with no gap over 10.1 s. Every interval is in the gap log and every book resynced. The `market` connection and Coinbase logged no gaps. Kraken dropped once, at 00:03:10, for 2.6 s. The cause is not established. Binance feed latency reached about 1 s in that stretch while the other venues stayed under 140 ms, and ingest p99 never reached 1 ms. |
+| 2026-11-02 01:15 to 02:05 | Health check for a two-minute full-disk `find /`. No write errors, no raw archive drops, no parse errors, ingest p99 at most 0.94 ms. Binance book lost 71 to 72 s per symbol and bbo 47.6 s, all from the drops above, which began before this window. Nothing points to the disk, though the exact two minutes are not known. |
+| 2026-11-02 03:03 | Clock 6 to 11 ms fast against NTP after the Windows change. It has been under 50 ms since about 00:30. |
 | No earlier than 2026-11-02 20:15 | Planned owner reboot. It applies `instanceIdleTimeout=-1` and tests the boot task. |
 
 The 14-day consecutive capture for AC-W-01 is counted from the first clean start after that reboot. Anything recorded before it is a bonus.
