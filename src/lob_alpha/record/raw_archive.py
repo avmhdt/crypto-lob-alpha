@@ -13,6 +13,7 @@ zstd frame, which the reader stops at cleanly.
 from __future__ import annotations
 
 import heapq
+import os
 import queue
 import shutil
 import threading
@@ -102,6 +103,8 @@ class RawArchive:
 
     def _close_file(self, file: _File) -> None:
         file.stream.flush(zstandard.FLUSH_FRAME)
+        file.handle.flush()
+        os.fsync(file.handle.fileno())
         file.handle.close()
 
     def _flush_all(self) -> None:
