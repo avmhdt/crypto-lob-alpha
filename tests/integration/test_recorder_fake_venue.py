@@ -144,14 +144,27 @@ async def test_disconnect_logs_a_gap_and_resyncs_without_a_restart(
 
     await record(recorder_config({"binance-usdm": binance.config()}), tmp_path, body)
     gaps = parquet_rows(tmp_path, "gaps")
-    assert sorted({(g["stream"], g["reason"]) for g in gaps}) == [
-        ("bbo", "disconnect"),
-        ("book", "disconnect"),
-    ]
+    assert {(g["stream"], g["reason"]) for g in gaps} == {("book", "disconnect")}
     book_rows = parquet_rows(tmp_path, "book_l2")
     assert max(r["sync_epoch"] for r in book_rows) == 2
     book, rows = rebuild(tmp_path)
     assert_matches_truth(book, binance, max(r["seq"] for r in rows))
+
+
+async def test_dropping_the_ticker_connection_leaves_the_book_alone(
+    tmp_path: Path, binance: FakeBinance
+) -> None:
+    async def body(recorder: Recorder) -> None:
+        await wait_for(lambda: book_live(recorder, "binance-usdm", SYMBOL))
+        await asyncio.sleep(0.2)
+        await binance.drop_ticker()
+        await asyncio.sleep(0.5)
+        assert book_live(recorder, "binance-usdm", SYMBOL)
+
+    await record(recorder_config({"binance-usdm": binance.config()}), tmp_path, body)
+    gaps = parquet_rows(tmp_path, "gaps")
+    assert {(g["stream"], g["reason"]) for g in gaps} == {("bbo", "disconnect")}
+    assert {r["sync_epoch"] for r in parquet_rows(tmp_path, "book_l2")} == {1}
 
 
 async def test_silence_triggers_the_watchdog(tmp_path: Path, binance: FakeBinance) -> None:
@@ -240,8 +253,8 @@ async def test_make_before_break_has_zero_gap_and_no_duplicates(
     async def body(recorder: Recorder) -> None:
         await wait_for(lambda: book_live(recorder, "binance-usdm", SYMBOL))
         runner = recorder.runners[0]
-        await wait_for(lambda: runner.generation >= 4, 12.0)  # both connections replaced
-        await wait_for(lambda: not runner.pipeline.standby and len(runner.sockets) == 2, 12.0)
+        await wait_for(lambda: runner.generation >= 6, 12.0)  # all three connections replaced
+        await wait_for(lambda: not runner.pipeline.standby and len(runner.sockets) == 3, 12.0)
         await asyncio.sleep(0.5)
 
     await record(config, tmp_path, body)

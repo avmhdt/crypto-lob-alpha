@@ -126,6 +126,15 @@ async def test_parse_error_on_rest_body_becomes_snapshot_error(tmp_path: Path) -
     await close(recorder, runner)
 
 
+async def test_a_late_periodic_status_cannot_undo_the_final_one(tmp_path: Path) -> None:
+    recorder, runner = offline_recorder(tmp_path, "binance-usdm", FakeBinance().config())
+    recorder.write_status({"stopped": False})
+    recorder.write_status({"stopped": True}, final=True)
+    recorder.write_status({"stopped": False})
+    assert health.read_status(tmp_path) == {"stopped": True}
+    await close(recorder, runner)
+
+
 async def test_rate_limiter_holds_after_a_penalty() -> None:
     limiter = RateLimiter(1, 1000)
     await limiter.acquire()

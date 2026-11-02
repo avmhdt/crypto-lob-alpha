@@ -15,6 +15,7 @@ SEC = 1_000_000_000
 T0 = 1_793_566_970 * SEC
 PUBLIC = "public.g0"
 MARKET = "market.g0"
+TICKER = "ticker.g0"
 TICKS = {"BTCUSDT": 0.1, "ETHUSDT": 0.01}
 
 
@@ -55,6 +56,7 @@ def make(sink: MemorySink) -> VenuePipeline:
     pipeline = VenuePipeline(BinanceUsdm(binance_cfg()), sink, TICKS, host="h", version="v")
     pipeline.ingest_control(T0, {"k": "conn_open", "conn": PUBLIC, "logical": "public"})
     pipeline.ingest_control(T0, {"k": "conn_open", "conn": MARKET, "logical": "market"})
+    pipeline.ingest_control(T0, {"k": "conn_open", "conn": TICKER, "logical": "ticker"})
     return pipeline
 
 
@@ -165,11 +167,11 @@ def test_disconnect_opens_gaps_on_every_stream_of_the_connection(sink: MemorySin
     pipeline = make(sink)
     to_live(pipeline)
     pipeline.ingest_frame(MARKET, T0 + 5, trade(1))
-    pipeline.ingest_frame(PUBLIC, T0 + 6, ticker(1))
+    pipeline.ingest_frame(TICKER, T0 + 6, ticker(1))
     pipeline.ingest_control(T0 + SEC, {"k": "conn_close", "conn": PUBLIC, "reason": "disconnect"})
     book = pipeline.books["BTCUSDT"]
     assert book.state is SyncState.CONNECTING
-    assert pipeline.bbos["BTCUSDT"].state is SyncState.CONNECTING
+    assert pipeline.bbos["BTCUSDT"].state is SyncState.LIVE  # bookTicker has its own connection
     assert pipeline.trades["BTCUSDT"].state is SyncState.LIVE  # the market connection is fine
     next_conn = "public.g1"
     pipeline.ingest_control(
@@ -177,12 +179,41 @@ def test_disconnect_opens_gaps_on_every_stream_of_the_connection(sink: MemorySin
     )
     pipeline.ingest_frame(next_conn, T0 + 2 * SEC + 1, depth(40, 50, 39))
     pipeline.ingest_control(T0 + 3 * SEC, {"k": "snapshot", "symbol": "BTCUSDT"}, rest(45))
-    reasons = sorted((g.stream, g.symbol, g.reason) for g in sink.gaps)
-    assert reasons == [
-        ("bbo", "BTCUSDT", "disconnect"),
-        ("bbo", "ETHUSDT", "disconnect"),
-        ("book", "BTCUSDT", "disconnect"),
+    assert [(g.stream, g.symbol, g.reason) for g in sink.gaps] == [
+        ("book", "BTCUSDT", "disconnect")
     ]
+
+
+def test_a_dropped_ticker_connection_leaves_the_book_live(sink: MemorySink) -> None:
+    pipeline = make(sink)
+    to_live(pipeline)
+    pipeline.ingest_frame(TICKER, T0 + 6, ticker(1))
+    pipeline.ingest_control(T0 + SEC, {"k": "conn_close", "conn": TICKER, "reason": "disconnect"})
+    assert pipeline.books["BTCUSDT"].state is SyncState.LIVE
+    assert pipeline.bbos["BTCUSDT"].state is SyncState.CONNECTING
+    pipeline.ingest_control(
+        T0 + 2 * SEC, {"k": "conn_open", "conn": "ticker.g1", "logical": "ticker"}
+    )
+    pipeline.ingest_frame("ticker.g1", T0 + 3 * SEC, ticker(2))
+    assert pipeline.bbos["BTCUSDT"].state is SyncState.LIVE
+    assert sorted((g.stream, g.symbol) for g in sink.gaps) == [
+        ("bbo", "BTCUSDT"),
+        ("bbo", "ETHUSDT"),
+    ]
+
+
+def test_archives_from_the_shared_public_connection_still_replay(sink: MemorySink) -> None:
+    """Hours recorded before the split carried bookTicker on `public` and must still recover."""
+    pipeline = VenuePipeline(BinanceUsdm(binance_cfg()), sink, TICKS)
+    pipeline.ingest_control(T0, {"k": "conn_open", "conn": PUBLIC, "logical": "public"})
+    pipeline.ingest_frame(PUBLIC, T0 + 1, depth(10, 20, 9))
+    pipeline.ingest_control(T0 + 2, {"k": "snapshot", "symbol": "BTCUSDT"}, rest(15))
+    pipeline.ingest_frame(PUBLIC, T0 + 3, ticker(1))
+    pipeline.ingest_frame(PUBLIC, T0 + 4, depth(21, 30, 20))
+    pipeline.ingest_frame(PUBLIC, T0 + 5, ticker(2))
+    assert [b.seq for b in sink.bbos] == [1, 2]
+    assert [b.seq for b in sink.batches] == [15, 20, 30]
+    assert pipeline.parse_errors == 0
 
 
 def test_trades_dedupe_and_flag_id_jumps(sink: MemorySink) -> None:
@@ -224,6 +255,7 @@ def test_timers_flag_stale_book_and_silent_connection(sink: MemorySink) -> None:
     now = T0 + 31 * SEC
     pipeline.conns[PUBLIC].last_frame_ns = now
     pipeline.conns[MARKET].last_frame_ns = now
+    pipeline.conns[TICKER].last_frame_ns = now
     controls, actions = pipeline.timers(now)
     assert {"k": "stale", "symbol": "BTCUSDT"} in controls
     assert actions == [NeedSnapshot("ETHUSDT")]  # ETHUSDT never reached LIVE

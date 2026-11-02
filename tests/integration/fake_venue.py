@@ -72,6 +72,7 @@ class FakeBinance:
         self.ws: websockets.Server | None = None
         self.port = 0
         self.public: set[ServerConnection] = set()
+        self.ticker: set[ServerConnection] = set()
         self.market: set[ServerConnection] = set()
         self.bids: dict[int, str] = {1000 - i: "1.000" for i in range(1, 21)}
         self.asks: dict[int, str] = {1000 + i: "1.000" for i in range(1, 21)}
@@ -104,7 +105,13 @@ class FakeBinance:
         ).encode()
 
     async def _handler(self, connection: ServerConnection) -> None:
-        group = self.public if connection.request.path.startswith("/public") else self.market
+        path = connection.request.path
+        if "bookTicker" in path:
+            group = self.ticker
+        elif path.startswith("/public"):
+            group = self.public
+        else:
+            group = self.market
         group.add(connection)
         try:
             await connection.wait_closed()
@@ -155,7 +162,7 @@ class FakeBinance:
                 "e": "bookTicker", "T": now_ms, "u": self.update_id, "s": SYMBOL,
                 "b": _px(max(self.bids)), "B": "1", "a": _px(min(self.asks)), "A": "1",
             }  # fmt: skip
-            await self._send(self.public, self._frame("btcusdt@bookTicker", ticker))
+            await self._send(self.ticker, self._frame("btcusdt@bookTicker", ticker))
             self.trade_id += 1
             self.trades_sent.append(self.trade_id)
             trade = {
@@ -166,6 +173,10 @@ class FakeBinance:
 
     async def drop_public(self) -> None:
         for connection in list(self.public):
+            await connection.close()
+
+    async def drop_ticker(self) -> None:
+        for connection in list(self.ticker):
             await connection.close()
 
     async def start(self) -> None:

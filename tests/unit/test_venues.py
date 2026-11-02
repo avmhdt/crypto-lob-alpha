@@ -86,11 +86,13 @@ def test_binance_ack_and_unknown_events() -> None:
 
 
 def test_binance_connections_split_public_and_market() -> None:
-    public, market = BinanceUsdm(binance_cfg()).connections(["BTCUSDT", "ETHUSDT"])
-    assert public.url == (
-        "wss://x/public/stream?streams=btcusdt@depth@100ms/btcusdt@bookTicker/"
-        "ethusdt@depth@100ms/ethusdt@bookTicker"
-    )
+    public, ticker, market = BinanceUsdm(binance_cfg()).connections(["BTCUSDT", "ETHUSDT"])
+    assert public.url == "wss://x/public/stream?streams=btcusdt@depth@100ms/ethusdt@depth@100ms"
+    assert ticker.url == "wss://x/public/stream?streams=btcusdt@bookTicker/ethusdt@bookTicker"
+    assert ticker.bbo
+    assert not ticker.book
+    assert not ticker.trades
+    assert not public.bbo
     assert market.url == "wss://x/market/stream?streams=btcusdt@aggTrade/ethusdt@aggTrade"
     assert public.book
     assert not public.trades
