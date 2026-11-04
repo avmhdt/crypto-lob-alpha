@@ -12,6 +12,8 @@ import polars as pl
 from lob_alpha import schemas
 
 NS_PER_S = 1_000_000_000
+NS_PER_DAY = 86_400 * NS_PER_S
+AC_W_01_MIN_PCT = 99.0
 NOT_DOWNTIME = {"clock"}  # data still arrived; research treats these with and without
 
 
@@ -92,6 +94,31 @@ def coverage_table(
     return pl.DataFrame(rows)
 
 
+def coverage_by_day(
+    gaps: pl.DataFrame, streams: list[Stream], start_ns: int, end_ns: int
+) -> pl.DataFrame:
+    """Coverage per stream per UTC day, for the AC-W-01 check of whole days.
+
+    A day is `complete_window` only when the whole UTC day lies inside the capture window.
+    `meets_99` is the per-day bar a complete day must clear (DQ-10, AC-W-01).
+    """
+    frames: list[pl.DataFrame] = []
+    day_ns = start_ns - start_ns % NS_PER_DAY
+    while day_ns < end_ns:
+        lo, hi = max(day_ns, start_ns), min(day_ns + NS_PER_DAY, end_ns)
+        table = coverage_table(gaps, streams, lo, hi)
+        day = datetime.fromtimestamp(day_ns / NS_PER_S, tz=UTC).date()
+        frames.append(
+            table.with_columns(
+                pl.lit(day.isoformat()).alias("date"),
+                pl.lit(hi - lo == NS_PER_DAY).alias("complete_window"),
+                (pl.col("coverage_pct") >= AC_W_01_MIN_PCT).alias("meets_99"),
+            ).select("date", "complete_window", *table.columns, "meets_99")
+        )
+        day_ns += NS_PER_DAY
+    return pl.concat(frames)
+
+
 def publish(
     data_dir: Path,
     streams: list[Stream],
@@ -99,8 +126,9 @@ def publish(
     end: date,
     out: Path,
     coverage_out: Path,
+    by_day_out: Path | None = None,
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
-    """Write `gap_log.csv` and `coverage.csv` for the UTC days from `start` to `end`."""
+    """Write `gap_log.csv` and `coverage.csv`, and optionally per-day coverage."""
     start_ns = _ns(start)
     end_ns = min(_ns(end + timedelta(days=1)), time.time_ns())
     capture = data_dir / "capture.json"
@@ -115,4 +143,7 @@ def publish(
     coverage_out.parent.mkdir(parents=True, exist_ok=True)
     log.write_csv(out)
     coverage.write_csv(coverage_out)
+    if by_day_out is not None:
+        by_day_out.parent.mkdir(parents=True, exist_ok=True)
+        coverage_by_day(gaps, streams, start_ns, end_ns).write_csv(by_day_out)
     return log, coverage
