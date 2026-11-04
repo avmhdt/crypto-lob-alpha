@@ -15,6 +15,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
+import polars as pl
 import pytest
 import yaml
 from fake_venue import SYMBOL, FakeBinance, FakeKraken, instruments, parquet_rows, recorder_config
@@ -412,6 +413,21 @@ async def test_status_cli_and_gaplog(
     assert log.item(0, "start_utc").endswith("Z")
     assert coverage.item(0, "coverage_pct") < 100
     assert coverage.item(0, "n_gaps") == 1
+    by_day = tmp_path / "by_day.csv"
+    publish(
+        tmp_path,
+        [Stream("binance-usdm", SYMBOL, "book")],
+        today,
+        today,
+        tmp_path / "gap_log.csv",
+        tmp_path / "coverage.csv",
+        by_day,
+    )
+    daily = pl.read_csv(by_day)
+    assert daily.height == 1
+    assert daily.item(0, "date") == today.isoformat()
+    assert daily.item(0, "complete_window") is False
+    assert daily.item(0, "n_gaps") == 1
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="SIGKILL is POSIX")

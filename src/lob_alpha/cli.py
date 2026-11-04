@@ -196,6 +196,9 @@ def record_gaplog(
     coverage_out: Annotated[Path, typer.Option("--coverage-out")] = Path(
         "reports/tables/coverage.csv"
     ),
+    by_day_out: Annotated[Path, typer.Option("--by-day-out")] = Path(
+        "reports/tables/coverage_by_day.csv"
+    ),
     config: ConfigOption = DEFAULT_CONFIG,
 ) -> None:
     """Publish the gap log and the per-stream coverage table."""
@@ -215,6 +218,7 @@ def record_gaplog(
         date.fromisoformat(end),
         out,
         coverage_out,
+        by_day_out,
     )
     typer.echo(f"{log.height} gaps to {out}; coverage for {coverage.height} streams")
     typer.echo(str(coverage.select("venue", "symbol", "stream", "coverage_pct", "longest_gap_s")))
