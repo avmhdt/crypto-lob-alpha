@@ -14,7 +14,7 @@
 
 ## Requirements
 
-- [ ] A websocket recorder for L2 depth updates and trades on 3+ instruments, with sequence-gap detection and snapshot resync.
+- [x] A websocket recorder for L2 depth updates and trades on 3+ instruments, with sequence-gap detection and snapshot resync. (FR-01 to FR-11, AC-W-06)
 - [ ] Order book reconstruction verified against exchange checksums or periodic REST snapshots.
 - [ ] Features: order flow imbalance (Cont, Kukanov and Stoikov 2014), multi-level OFI, queue imbalance, microprice (Stoikov 2018), trade-sign imbalance, spread, short-horizon volatility.
 - [ ] Labels: mid-price change in ticks at horizons from 100 ms to 30 s, in both event time and clock time.

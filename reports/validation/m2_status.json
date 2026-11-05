@@ -1,0 +1,368 @@
+{
+  "status": {
+    "ts_ns": 1793837543399551095,
+    "ts_utc": "2026-11-05T00:12:23.399551+00:00",
+    "run": "20261102T234621",
+    "pid": 209351,
+    "host": "ASTOGIRO",
+    "boot_id": "6cdc0ad0-7dbd-4c49-9985-8d7a22419c1a",
+    "version": "0.1.0+ea940f55e1e8",
+    "stopped": false,
+    "disk": {
+      "free_gb": 760.9,
+      "used_pct": 19.3,
+      "guarded": false,
+      "raw_paused": false
+    },
+    "writer": {
+      "rows_written": 947713468,
+      "files_closed": 1911,
+      "flush_errors": 0,
+      "last_error": ""
+    },
+    "raw": {
+      "dropped": 0,
+      "errors": 0,
+      "last_error": ""
+    },
+    "venues": {
+      "binance-usdm": {
+        "streams": [
+          {
+            "symbol": "BTCUSDT",
+            "stream": "book",
+            "state": "LIVE",
+            "last_good_ns": 1793837543334052110,
+            "last_seq": 12016514768212,
+            "age_s": 0.1,
+            "msgs": 1691313,
+            "epoch": 58,
+            "crossed": 0,
+            "resyncs": 0
+          },
+          {
+            "symbol": "ETHUSDT",
+            "stream": "book",
+            "state": "LIVE",
+            "last_good_ns": 1793837543398027308,
+            "last_seq": 12016514773347,
+            "age_s": 0.0,
+            "msgs": 1687166,
+            "epoch": 59,
+            "crossed": 0,
+            "resyncs": 0
+          },
+          {
+            "symbol": "SOLUSDT",
+            "stream": "book",
+            "state": "LIVE",
+            "last_good_ns": 1793837543354256765,
+            "last_seq": 12016514770098,
+            "age_s": 0.0,
+            "msgs": 1619486,
+            "epoch": 55,
+            "crossed": 0,
+            "resyncs": 0
+          },
+          {
+            "symbol": "BTCUSDT",
+            "stream": "trades",
+            "state": "LIVE",
+            "last_good_ns": 1793837543259998182,
+            "last_seq": 3508084171,
+            "age_s": 0.1,
+            "msgs": 2918901,
+            "duplicates": 68
+          },
+          {
+            "symbol": "ETHUSDT",
+            "stream": "trades",
+            "state": "LIVE",
+            "last_good_ns": 1793837543270325115,
+            "last_seq": 3140524865,
+            "age_s": 0.1,
+            "msgs": 2593254,
+            "duplicates": 17
+          },
+          {
+            "symbol": "SOLUSDT",
+            "stream": "trades",
+            "state": "LIVE",
+            "last_good_ns": 1793837543358307890,
+            "last_seq": 1110988629,
+            "age_s": 0.0,
+            "msgs": 557945,
+            "duplicates": 16
+          },
+          {
+            "symbol": "BTCUSDT",
+            "stream": "bbo",
+            "state": "LIVE",
+            "last_good_ns": 1793837543348744791,
+            "last_seq": 12016514754825,
+            "age_s": 0.1,
+            "msgs": 81140479,
+            "duplicates": 0
+          },
+          {
+            "symbol": "ETHUSDT",
+            "stream": "bbo",
+            "state": "LIVE",
+            "last_good_ns": 1793837543397854232,
+            "last_seq": 12016514755231,
+            "age_s": 0.0,
+            "msgs": 81922481,
+            "duplicates": 0
+          },
+          {
+            "symbol": "SOLUSDT",
+            "stream": "bbo",
+            "state": "LIVE",
+            "last_good_ns": 1793837543348737540,
+            "last_seq": 12016514754815,
+            "age_s": 0.1,
+            "msgs": 24335369,
+            "duplicates": 0
+          }
+        ],
+        "parse_errors": 0,
+        "ts_regressions": 851,
+        "feed_latency_ms_p50": 150.39,
+        "clock_offset_ms": -7.87,
+        "ingest_us_p50": 13.776,
+        "ingest_us_p99": 244.298,
+        "frames": 198466531,
+        "conns": [
+          "market.g92",
+          "public.g94",
+          "ticker.g95"
+        ]
+      },
+      "coinbase": {
+        "streams": [
+          {
+            "symbol": "BTC-USD",
+            "stream": "book",
+            "state": "LIVE",
+            "last_good_ns": 1793837543392528439,
+            "last_seq": 1793837543392528439,
+            "age_s": 0.0,
+            "msgs": 2820237,
+            "epoch": 39,
+            "crossed": 0,
+            "resyncs": 0
+          },
+          {
+            "symbol": "ETH-USD",
+            "stream": "book",
+            "state": "LIVE",
+            "last_good_ns": 1793837543389614582,
+            "last_seq": 1793837543389614582,
+            "age_s": 0.0,
+            "msgs": 2657439,
+            "epoch": 41,
+            "crossed": 0,
+            "resyncs": 0
+          },
+          {
+            "symbol": "SOL-USD",
+            "stream": "book",
+            "state": "LIVE",
+            "last_good_ns": 1793837543376151034,
+            "last_seq": 1793837543376151034,
+            "age_s": 0.0,
+            "msgs": 2249067,
+            "epoch": 39,
+            "crossed": 0,
+            "resyncs": 0
+          },
+          {
+            "symbol": "BTC-USD",
+            "stream": "trades",
+            "state": "LIVE",
+            "last_good_ns": 1793837543380633975,
+            "last_seq": 1115296293,
+            "age_s": 0.0,
+            "msgs": 1142200,
+            "duplicates": 0
+          },
+          {
+            "symbol": "ETH-USD",
+            "stream": "trades",
+            "state": "LIVE",
+            "last_good_ns": 1793837541766691176,
+            "last_seq": 852243997,
+            "age_s": 1.6,
+            "msgs": 522227,
+            "duplicates": 0
+          },
+          {
+            "symbol": "SOL-USD",
+            "stream": "trades",
+            "state": "LIVE",
+            "last_good_ns": 1793837540786794736,
+            "last_seq": 359634501,
+            "age_s": 2.6,
+            "msgs": 178480,
+            "duplicates": 0
+          }
+        ],
+        "parse_errors": 0,
+        "ts_regressions": 20,
+        "feed_latency_ms_p50": 110.74,
+        "clock_offset_ms": -4.82,
+        "ingest_us_p50": 67.356,
+        "ingest_us_p99": 257.03,
+        "frames": 10090600,
+        "conns": [
+          "ws.g40"
+        ]
+      },
+      "kraken": {
+        "streams": [
+          {
+            "symbol": "BTC/USD",
+            "stream": "book",
+            "state": "LIVE",
+            "last_good_ns": 1793837543372328478,
+            "last_seq": 1793837543372328478,
+            "age_s": 0.0,
+            "msgs": 33365905,
+            "epoch": 63,
+            "crossed": 0,
+            "resyncs": 0
+          },
+          {
+            "symbol": "ETH/USD",
+            "stream": "book",
+            "state": "LIVE",
+            "last_good_ns": 1793837543388827814,
+            "last_seq": 1793837543388827814,
+            "age_s": 0.0,
+            "msgs": 31206343,
+            "epoch": 63,
+            "crossed": 0,
+            "resyncs": 0
+          },
+          {
+            "symbol": "SOL/USD",
+            "stream": "book",
+            "state": "LIVE",
+            "last_good_ns": 1793837543372530568,
+            "last_seq": 1793837543372530568,
+            "age_s": 0.0,
+            "msgs": 13042090,
+            "epoch": 63,
+            "crossed": 0,
+            "resyncs": 0
+          },
+          {
+            "symbol": "BTC/USD",
+            "stream": "trades",
+            "state": "LIVE",
+            "last_good_ns": 1793837540619373632,
+            "last_seq": null,
+            "age_s": 2.8,
+            "msgs": 330642,
+            "duplicates": 0
+          },
+          {
+            "symbol": "ETH/USD",
+            "stream": "trades",
+            "state": "LIVE",
+            "last_good_ns": 1793837540404211683,
+            "last_seq": null,
+            "age_s": 3.0,
+            "msgs": 109398,
+            "duplicates": 0
+          },
+          {
+            "symbol": "SOL/USD",
+            "stream": "trades",
+            "state": "LIVE",
+            "last_good_ns": 1793837528681480410,
+            "last_seq": null,
+            "age_s": 14.7,
+            "msgs": 86816,
+            "duplicates": 0
+          }
+        ],
+        "parse_errors": 0,
+        "ts_regressions": 227,
+        "feed_latency_ms_p50": 113.13,
+        "clock_offset_ms": -7.04,
+        "ingest_us_p50": 30.398,
+        "ingest_us_p99": 179.189,
+        "frames": 78064063,
+        "conns": [
+          "ws.g57"
+        ]
+      }
+    }
+  },
+  "disk": {
+    "platform": "ASTOGIRO",
+    "free_gb": 760.9,
+    "used_pct": 19.3,
+    "warn_over_80_pct": false,
+    "capture_started_utc": "2026-11-01T22:11:59.262181+00:00",
+    "days": {
+      "2026-11-01": {
+        "bbo": 0.062,
+        "book_l2": 0.152,
+        "checkpoint_levels": 0.001,
+        "checkpoints": 0.053,
+        "clock": 0.0,
+        "gaps": 0.0,
+        "raw": 0.231,
+        "trades": 0.006
+      },
+      "2026-11-02": {
+        "bbo": 1.152,
+        "book_l2": 2.384,
+        "checkpoint_levels": 0.016,
+        "checkpoints": 0.841,
+        "clock": 0.002,
+        "gaps": 0.002,
+        "raw": 3.871,
+        "trades": 0.094
+      },
+      "2026-11-03": {
+        "bbo": 1.043,
+        "book_l2": 2.258,
+        "checkpoint_levels": 0.016,
+        "checkpoints": 0.817,
+        "clock": 0.003,
+        "gaps": 0.0,
+        "raw": 3.442,
+        "trades": 0.084
+      },
+      "2026-11-04": {
+        "bbo": 1.625,
+        "book_l2": 3.17,
+        "checkpoint_levels": 0.016,
+        "checkpoints": 1.199,
+        "clock": 0.003,
+        "gaps": 0.002,
+        "raw": 5.102,
+        "trades": 0.13
+      },
+      "2026-11-05": {
+        "bbo": 0.009,
+        "book_l2": 0.024,
+        "checkpoint_levels": 0.0,
+        "checkpoints": 0.01,
+        "clock": 0.0,
+        "raw": 0.035,
+        "trades": 0.001
+      }
+    },
+    "elapsed_days": 3.084,
+    "canonical_gb_per_day": 4.92,
+    "raw_gb_per_day": 4.11,
+    "rate_is_provisional": false,
+    "planned_end_utc": "2026-11-29",
+    "projected_growth_gb": 142.8,
+    "projected_free_gb_at_end": 618.0
+  }
+}
