@@ -85,10 +85,10 @@ Closed files are left alone unless you add `--replace`, except a part with no Pa
 ## Publish the gap log
 
 ```bash
-uv run lob record gaplog --start 2026-11-02 --end 2026-11-16
+uv run lob record gaplog --start 2026-11-08 --end 2026-11-21
 ```
 
-This writes `reports/gap_log.csv` and `reports/tables/coverage.csv`. Rows with reason `clock` are kept in the log but do not count as downtime, because data still arrived.
+Those are the dates AC-W-01 is judged on (owner decision of 2026-11-07). This writes `reports/gap_log.csv`, `reports/tables/coverage.csv` and `reports/tables/coverage_by_day.csv`. Rows with reason `clock` are kept in the log but do not count as downtime, because data still arrived.
 
 ## Disk
 
@@ -117,5 +117,6 @@ Free space only by the retention rules. D: is a spinning disk shared by all proj
 ## Windows
 
 - Windows Update is paused until 2026-12-06. Extend the pause before then if capture is still running.
+- Watch free space on D: itself, not only `lob record status --disk`. The WSL disk is a file on D: that grows as it fills, so WSL can report more free space than D: has, and the disk guard reads the WSL figure.
 - Windows syncs from `time.cloudflare.com`. To undo that, run `w32tm /config /manualpeerlist:"time.windows.com,0x9" /syncfromflags:manual /update` in an administrator terminal. `/config` fails without admin rights.
 - Sleep is off on AC.
