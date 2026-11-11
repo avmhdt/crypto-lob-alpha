@@ -85,10 +85,10 @@ Closed files are left alone unless you add `--replace`, except a part with no Pa
 ## Publish the gap log
 
 ```bash
-uv run lob record gaplog --start 2026-11-08 --end 2026-11-21
+uv run lob record gaplog --start 2026-11-12 --end 2026-11-25
 ```
 
-Those are the dates AC-W-01 is judged on (owner decision of 2026-11-07). This writes `reports/gap_log.csv`, `reports/tables/coverage.csv` and `reports/tables/coverage_by_day.csv`. Rows with reason `clock` are kept in the log but do not count as downtime, because data still arrived.
+Those are the dates AC-W-01 is judged on (owner decision of 2026-11-11). This writes `reports/gap_log.csv`, `reports/tables/coverage.csv` and `reports/tables/coverage_by_day.csv`. Rows with reason `clock` are kept in the log but do not count as downtime, because data still arrived.
 
 ## Disk
 
