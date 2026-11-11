@@ -15,7 +15,7 @@ health:
   min_free_gb: ${LOB_MIN_FREE_GB}
   clock_probe_interval_s: 60
   status_interval_s: 10
-  planned_capture_days: 37             # 2026-11-01 22:12 + 37 d = 2026-12-08 22:12 UTC; owner decision 2026-11-09
+  planned_capture_days: 41             # 2026-11-01 22:12 + 41 d = 2026-12-12 22:12 UTC; owner decision 2026-11-11
 venues:
   binance-usdm:
     ws_public: wss://fstream.binance.com/public/stream
