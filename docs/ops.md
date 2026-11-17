@@ -97,7 +97,7 @@ Those are the dates AC-W-01 is judged on (owner decision of 2026-11-11). This wr
 - Below 5 GB free, all capture stops with a `disk_guard` gap and resumes when space returns.
 - At 80% used the recorder logs a warning every minute.
 
-Free space only by the retention rules. D: is a spinning disk shared by all projects.
+Free space only by the retention rules. Since 2026-11-17 the WSL disk is on G:, a 4 TB NVMe disk shared by all projects. Before that it was on D:, a spinning disk that began failing.
 
 ## Reasons in the gap log
 
@@ -117,6 +117,6 @@ Free space only by the retention rules. D: is a spinning disk shared by all proj
 ## Windows
 
 - Windows Update is paused until 2026-12-06. Extend the pause before then if capture is still running.
-- Watch free space on D: itself, not only `lob record status --disk`. The WSL disk is a file on D: that grows as it fills, so WSL can report more free space than D: has, and the disk guard reads the WSL figure.
+- Watch two free-space figures: WSL's own (`df /`, which `lob record status --disk` and the disk guard read) and G:'s (`df /mnt/g`). The WSL disk is a file on G: (`G:\WSL\Ubuntu\ext4.vhdx`) that grows as it fills, up to its own size limit of about 1 TB. Whichever figure is lower is the real limit. On 2026-11-17, WSL showed 640 GB free and G: 3,216 GB, so WSL's figure is the lower one and the guard reads the right figure. If G: ever drops below WSL's free figure, G: becomes the limit and the guard cannot see it.
 - Windows syncs from `time.cloudflare.com` and checks it every 1,024 s (w32time `MaxPollInterval` 10, set 2026-11-09). At the default of 32,768 s the host gained up to about 50 ms between checks; see F-02 in [decisions.md](decisions.md). To undo the source change, run `w32tm /config /manualpeerlist:"time.windows.com,0x9" /syncfromflags:manual /update` in an administrator terminal. `/config` fails without admin rights.
 - Sleep is off on AC.
