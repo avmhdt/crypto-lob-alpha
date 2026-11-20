@@ -235,3 +235,18 @@ def test_download_once_with_rate_cap(tmp_path: Path) -> None:
         external.download("https://example.test/f.zip", dest, client=client)
     assert dest.read_bytes() == b"x" * 4000
     assert len(calls) == 1
+
+
+def test_complete_days_start_after_capture_start(tmp_path: Path) -> None:
+    import json
+
+    from lob_alpha.reports.gaplog import Stream
+    from lob_alpha.validate.dq import complete_days
+
+    (tmp_path / "capture.json").write_text(
+        json.dumps({"started_ns": t(D1, 22, 0)}), encoding="utf-8"
+    )
+    streams = [Stream(V, S, "book"), Stream(V, S, "trades")]
+    days = complete_days(tmp_path, streams, D1, D2)
+    assert days.filter(pl.col("date") == str(D1))["complete"].item() is False
+    assert days.filter(pl.col("date") == str(D2))["complete"].item() is True

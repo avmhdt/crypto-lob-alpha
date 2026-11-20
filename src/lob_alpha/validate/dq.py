@@ -12,6 +12,7 @@ import duckdb
 import polars as pl
 import pyarrow.parquet as pq
 
+from lob_alpha.record import health
 from lob_alpha.reports.gaplog import NS_PER_DAY, Stream, _ns, coverage_by_day, load_gaps
 
 COMPLETE_PCT = 99.0  # DQ-10
@@ -82,8 +83,14 @@ def clock_offsets(data_dir: Path, start: date, end: date) -> pl.DataFrame:
 
 
 def complete_days(data_dir: Path, streams: list[Stream], start: date, end: date) -> pl.DataFrame:
-    """Coverage per stream per day and the DQ-10 verdict (book and trades both >= 99%)."""
+    """Coverage per stream per day and the DQ-10 verdict (book and trades both >= 99%).
+
+    A day counts as whole only when it starts at or after the capture start: coverage only
+    sees logged gaps, so the hours before the first start would otherwise look covered.
+    """
     gaps = load_gaps(data_dir)
+    capture = health.read_json(data_dir / health.CAPTURE_FILE) or {}
+    first_ns = int(capture.get("started_ns", 0))
     lo = _ns(start)
     hi = min(_ns(end) + NS_PER_DAY, _ns(date.today() + timedelta(days=1)))
     daily = coverage_by_day(gaps, streams, lo, hi)
@@ -94,6 +101,19 @@ def complete_days(data_dir: Path, streams: list[Stream], start: date, end: date)
             pl.col("coverage_pct").filter(pl.col("stream") == "book").first().alias("book_pct"),
             pl.col("coverage_pct").filter(pl.col("stream") == "trades").first().alias("trades_pct"),
             pl.col("complete_window").all().alias("whole_day"),
+        )
+        .with_columns(
+            (
+                pl.col("whole_day")
+                & (
+                    pl.col("date")
+                    .cast(pl.String)
+                    .str.to_date()
+                    .cast(pl.Datetime("ns"))
+                    .dt.epoch("ns")
+                    >= first_ns
+                )
+            ).alias("whole_day")
         )
         .with_columns(
             (
