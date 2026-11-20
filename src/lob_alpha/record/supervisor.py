@@ -72,6 +72,19 @@ class RateLimiter:
         self.blocked_until = max(self.blocked_until, time.monotonic() + seconds)
 
 
+def checkpoint_due(due: float, now: float, pause: float) -> float:
+    """Next REST checkpoint time on a fixed cadence.
+
+    The schedule advances by `pause` from the previous due time, not from when the last fetch
+    ended, so fetch time never stretches the period. After a stall longer than one pause it
+    restarts from now instead of firing a burst to catch up.
+    """
+    following = due + pause
+    if now - following > pause:
+        return now
+    return following
+
+
 def _run_id(ts_ns: int) -> str:
     return datetime.fromtimestamp(ts_ns / 1e9, tz=UTC).strftime("%Y%m%dT%H%M%S")
 
@@ -229,10 +242,18 @@ class VenueRunner:
             return
         symbols = self.cfg.symbols
         pause = self.cfg.checkpoint_interval_s / len(symbols)
+        loop = asyncio.get_running_loop()
+        due = loop.time()
         while True:
             for symbol in symbols:
-                await asyncio.sleep(pause)
+                # Fixed cadence: a fetch's own duration must not stretch the period, or a
+                # day ends with fewer than 86400 / interval checkpoints (AC-W-03 needs 144).
+                due = checkpoint_due(due, loop.time(), pause)
+                await asyncio.sleep(max(0.0, due - loop.time()))
                 if self.pipeline.books[symbol].state is not SyncState.LIVE:
+                    # No fetch, so a resync keeps the REST budget, but the slot is still
+                    # written (ok_live false) and counted as excluded offline (FR-15).
+                    self.control({"k": "checkpoint_skip", "symbol": symbol, "checkpoint": kind})
                     continue
                 try:
                     await self.limiter.acquire()

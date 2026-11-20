@@ -248,6 +248,14 @@ def test_checkpoints_record_levels_and_never_touch_the_book(sink: MemorySink) ->
     assert pipeline.books["BTCUSDT"].book.best_bid() == before
 
 
+def test_skipped_checkpoint_slot_is_written_as_not_live(sink: MemorySink) -> None:
+    pipeline = make(sink)
+    ctrl = {"k": "checkpoint_skip", "symbol": "BTCUSDT", "checkpoint": "rest_l2"}
+    pipeline.ingest_control(T0 + SEC, ctrl)
+    assert sink.checkpoints == [("rest_l2", False, None, None)]
+    assert sink.levels == []
+
+
 def test_timers_flag_stale_book_and_silent_connection(sink: MemorySink) -> None:
     pipeline = make(sink)
     to_live(pipeline)
