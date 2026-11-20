@@ -21,7 +21,10 @@ Checkpoints:
   such event, the state after the last event with u <= L is compared, when the next event
   chains to it (pu == u) and starts after L. L inside a gap is excluded.
 * `rest_l2`, Coinbase: level2 carries no sequence, so every batch boundary within
-  +-`COINBASE_WINDOW_S` of the REST receive time is a candidate. Levels touched by the
+  `COINBASE_BEFORE_S` before to `COINBASE_AFTER_S` after the REST receive time is a
+  candidate. The window reaches further back because the receive time is when the whole
+  response arrived: BTC-USD's level-2 book is about 1 MB, so on a slow link the snapshot can
+  be seconds older than its receive time. Levels touched by the
   following batch are excluded, because the snapshot may sit inside it. The checkpoint
   passes when a candidate matches on every compared level.
 
@@ -62,7 +65,8 @@ from lob_alpha.book.replay import (
 from lob_alpha.record.durable import durable_replace
 
 NS = 1_000_000_000
-COINBASE_WINDOW_S = 3.0
+COINBASE_BEFORE_S = 15.0
+COINBASE_AFTER_S = 5.0
 REST_LEVELS = 100
 SEEK_BACK_DAYS = 3
 WINDOW_LOW, WINDOW_HIGH = 0.7, 1.4  # of the traded price range
@@ -354,6 +358,7 @@ class DayStats:
     rest_total: int = 0
     rest_nonlive: int = 0
     rest_gap: int = 0
+    rest_inconclusive: int = 0
     rest_compared: int = 0
     rest_ok: int = 0
     rest_bad: int = 0
@@ -484,8 +489,8 @@ class Rebuilder:
     def _coinbase_probes(
         self, cp: RestCheckpoint, f: FileData, nxt: FileData | None
     ) -> list[_Probe]:
-        lo = cp.ts_recv - int(COINBASE_WINDOW_S * NS)
-        hi = cp.ts_recv + int(COINBASE_WINDOW_S * NS)
+        lo = cp.ts_recv - int(COINBASE_BEFORE_S * NS)
+        hi = cp.ts_recv + int(COINBASE_AFTER_S * NS)
         idx = np.flatnonzero((f.ts_recv >= lo) & (f.ts_recv <= hi))
         probes: list[_Probe] = []
         for b in (int(x) for x in idx):
@@ -571,7 +576,7 @@ class Rebuilder:
                         to_finish.append(cp)
                 else:
                     probes += self._coinbase_probes(cp, f, nxt)
-                    if cp.ts_recv + int(COINBASE_WINDOW_S * NS) > t_last:
+                    if cp.ts_recv + int(COINBASE_AFTER_S * NS) > t_last:
                         still.append(cp)
                     else:
                         to_finish.append(cp)
@@ -746,8 +751,14 @@ class Rebuilder:
             cp.outcome = "gap"
             st.rest_gap += 1
             return
-        cp.outcome = "compared"
         bad, compared, excluded, offset = cp.best
+        if compared == 0 and bad == 0:
+            # every level in range was touched by the straddling batch: nothing to compare
+            cp.outcome = "inconclusive"
+            st.rest_inconclusive += 1
+            st.rest_levels_excluded += excluded
+            return
+        cp.outcome = "compared"
         st.rest_compared += 1
         st.rest_levels_compared += compared
         st.rest_levels_excluded += excluded
@@ -756,7 +767,7 @@ class Rebuilder:
         st.rest_offset_ms_max = (
             ms if st.rest_offset_ms_max is None else max(st.rest_offset_ms_max, ms)
         )
-        if bad == 0 and compared > 0:
+        if bad == 0:
             st.rest_ok += 1
         else:
             st.rest_bad += 1
