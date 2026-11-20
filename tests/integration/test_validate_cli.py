@@ -218,3 +218,20 @@ def test_book_live_subtracts_gaps(tmp_path: Path) -> None:
     live = external.book_live(tmp_path, V, S, D1)
     assert live == [(t(D1, 0, 0), t(D1, 5, 0)), (t(D1, 6, 0), t(D2, 0, 0))]
     assert np.isclose(sum(b - a for a, b in live) / 3.6e12, 23.0)
+
+
+def test_download_once_with_rate_cap(tmp_path: Path) -> None:
+    import httpx
+
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        return httpx.Response(200, content=b"x" * 4000)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        dest = tmp_path / "a" / "f.zip"
+        external.download("https://example.test/f.zip", dest, client=client, max_bytes_per_s=1e9)
+        external.download("https://example.test/f.zip", dest, client=client)
+    assert dest.read_bytes() == b"x" * 4000
+    assert len(calls) == 1

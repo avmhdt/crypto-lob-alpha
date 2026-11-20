@@ -15,6 +15,7 @@ import csv
 import gzip
 import hashlib
 import io
+import time
 import zipfile
 from dataclasses import asdict, dataclass
 from datetime import date, timedelta
@@ -41,6 +42,7 @@ VISION = "https://data.binance.vision/data/futures/um/daily/aggTrades"
 TARDIS = "https://datasets.tardis.dev/v1"
 TARDIS_EXCHANGE = {"binance-usdm": "binance-futures", "coinbase": "coinbase", "kraken": "kraken"}
 GAP_MARGIN_S = 2.0
+RATE_CAP = 2_000_000.0  # bytes/s
 NS = 1_000_000_000
 MS = 1_000_000
 
@@ -49,8 +51,14 @@ def external_dir(data_dir: Path, kind: str) -> Path:
     return data_dir / "raw" / "external" / kind
 
 
-def download(url: str, dest: Path, *, client: httpx.Client | None = None) -> Path:
-    """Fetch once into `dest`; a finished file is never fetched again."""
+def download(
+    url: str, dest: Path, *, client: httpx.Client | None = None, max_bytes_per_s: float = RATE_CAP
+) -> Path:
+    """Fetch once into `dest`; a finished file is never fetched again.
+
+    The rate is capped so a check never competes with the recorder's own connections on the
+    home link (bursts of PC traffic hurt the Binance feed first, capture log 2026-11-02).
+    """
     if dest.exists():
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -60,9 +68,15 @@ def download(url: str, dest: Path, *, client: httpx.Client | None = None) -> Pat
     try:
         with http.stream("GET", url) as response:
             response.raise_for_status()
+            start = time.monotonic()
+            done = 0
             with tmp.open("wb") as handle:
-                for chunk in response.iter_bytes(1 << 20):
+                for chunk in response.iter_bytes(1 << 18):
                     handle.write(chunk)
+                    done += len(chunk)
+                    ahead = done / max_bytes_per_s - (time.monotonic() - start)
+                    if ahead > 0:
+                        time.sleep(ahead)
     finally:
         if own:
             http.close()
