@@ -282,3 +282,18 @@ def test_coinbase_rest_checkpoint_matches_a_nearby_boundary(tmp_path: Path) -> N
     assert st.rest_total == 2 and st.rest_compared == 2
     assert st.rest_ok == 1 and st.rest_bad == 1
     assert st.failures[0]["checkpoint_id"] == "x"
+
+
+def test_checkpoint_with_nothing_comparable_is_inconclusive(tmp_path: Path) -> None:
+    import numpy as np
+
+    from lob_alpha.validate.rebuild import DayStats, RestCheckpoint
+
+    empty_i, empty_f = np.zeros(0, np.int64), np.zeros(0, np.float64)
+    cp = RestCheckpoint("c", D1, 0, 1, True, empty_i, empty_f, empty_i, empty_f)
+    cp.best = (0, 0, 203, 0)  # every level in range touched by the straddling event
+    stats = {D1: DayStats("binance-usdm", "ETHUSDT", str(D1))}
+    Rebuilder(tmp_path, "binance-usdm", "ETHUSDT", 0.01, depth=None, raw=False)._finish(cp, stats)
+    st = stats[D1]
+    assert st.rest_inconclusive == 1 and st.rest_bad == 0 and st.rest_compared == 0
+    assert st.failures == []

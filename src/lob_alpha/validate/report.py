@@ -22,7 +22,8 @@ MIN_REST_PER_DAY = 144
 REST_VENUES = ("binance-usdm", "coinbase")
 
 SUMMARY_FIELDS = [
-    "venue", "symbol", "date", "kind", "total", "excluded_nonlive", "excluded_gap", "compared",
+    "venue", "symbol", "date", "kind", "total", "excluded_nonlive", "excluded_gap",
+    "excluded_inconclusive", "compared",
     "ok", "mismatched", "excluded_pct", "levels_compared", "levels_excluded", "levels_bad",
     "max_offset_ms", "complete_day", "meets_min_per_day",
 ]  # fmt: skip
@@ -68,7 +69,7 @@ def summary_rows(
                  "complete_day": is_complete, "meets_min_per_day": ""}
             )  # fmt: skip
         if st["rest_total"] or st["venue"] in REST_VENUES:
-            excl = st["rest_nonlive"] + st["rest_gap"]
+            excl = st["rest_nonlive"] + st["rest_gap"] + st.get("rest_inconclusive", 0)
             meets: bool | str = ""
             if st["venue"] in REST_VENUES and is_complete:
                 meets = st["rest_total"] >= MIN_REST_PER_DAY
@@ -76,7 +77,9 @@ def summary_rows(
                 {"venue": st["venue"], "symbol": st["symbol"], "date": st["date"],
                  "kind": "rest_l2",
                  "total": st["rest_total"], "excluded_nonlive": st["rest_nonlive"],
-                 "excluded_gap": st["rest_gap"], "compared": st["rest_compared"],
+                 "excluded_gap": st["rest_gap"],
+                 "excluded_inconclusive": st.get("rest_inconclusive", 0),
+                 "compared": st["rest_compared"],
                  "ok": st["rest_ok"], "mismatched": st["rest_bad"],
                  "excluded_pct": _pct(excl, st["rest_total"]),
                  "levels_compared": st["rest_levels_compared"],
@@ -146,7 +149,12 @@ def verdict_ac_w_03(rows: list[dict[str, Any]]) -> tuple[bool, str]:
         groups.setdefault((r["venue"], r["symbol"], r["kind"]), []).append(r)
     for (venue, symbol, kind), items in sorted(groups.items()):
         total = sum(int(r["total"]) for r in items)
-        excl = sum(int(r["excluded_nonlive"]) + int(r["excluded_gap"]) for r in items)
+        excl = sum(
+            int(r["excluded_nonlive"])
+            + int(r["excluded_gap"])
+            + int(r.get("excluded_inconclusive") or 0)
+            for r in items
+        )
         bad = sum(int(r["mismatched"]) for r in items)
         if bad:
             problems.append(f"{venue} {symbol} {kind}: {bad} mismatched")
