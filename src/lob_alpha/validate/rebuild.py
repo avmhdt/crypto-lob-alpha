@@ -45,6 +45,7 @@ import numpy as np
 import numpy.typing as npt
 import polars as pl
 import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 from lob_alpha.book.replay import (
@@ -163,12 +164,21 @@ class FileData:
 
 def load_file(path: Path, day: date, tick: float, raw: bool) -> FileData:
     columns = BOOK_COLUMNS + (["px_str", "qty_str"] if raw else [])
-    frame = pl.read_parquet(path, columns=columns, hive_partitioning=False)
-    price = frame["price"].to_numpy()
+    # pyarrow straight to NumPy: Polars' allocator spends minutes in the kernel on this host
+    # when WSL memory is tight, pyarrow about one second for the same file.
+    table = pq.read_table(path, columns=columns)
+
+    def column(name: str, fill: int | None = None) -> npt.NDArray[Any]:
+        data = table.column(name)
+        if fill is not None:
+            data = pc.fill_null(data, fill)
+        return np.asarray(data.to_numpy())
+
+    price = column("price")
     exact = price / tick
     ticks = np.rint(exact).astype(np.int64)
     tick_errors = int(np.count_nonzero(np.abs(exact - ticks) >= 1e-6))
-    batch = frame["batch_id"].to_numpy()
+    batch = column("batch_id")
     n = len(batch)
     starts = np.flatnonzero(np.diff(batch)) + 1 if n else np.zeros(0, dtype=np.int64)
     first = np.concatenate([[0], starts]).astype(np.int64) if n else np.zeros(0, np.int64)
@@ -176,20 +186,19 @@ def load_file(path: Path, day: date, tick: float, raw: bool) -> FileData:
     bids = batch[first]
     raw_arrays = None
     if raw:
-        px, pxl = strip_raw(frame["px_str"].to_list())
-        qt, qtl = strip_raw(frame["qty_str"].to_list())
+        px, pxl = strip_raw(table.column("px_str").to_pylist())
+        qt, qtl = strip_raw(table.column("qty_str").to_pylist())
         raw_arrays = (px, pxl, qt, qtl)
 
     def pick(name: str, fill: int = -1) -> npt.NDArray[np.int64]:
-        col = frame[name].fill_null(fill).to_numpy()
-        return np.asarray(col[first], dtype=np.int64)
+        return np.asarray(column(name, fill)[first], dtype=np.int64)
 
     return FileData(
         path=path,
         day=day,
-        sides=frame["side"].to_numpy().astype(np.int8),
+        sides=column("side").astype(np.int8),
         ticks=ticks,
-        qtys=frame["qty"].to_numpy().astype(np.float64),
+        qtys=column("qty").astype(np.float64),
         raw=raw_arrays,
         bstart=bstart,
         batch_id=np.asarray(bids, dtype=np.int64),
@@ -198,8 +207,8 @@ def load_file(path: Path, day: date, tick: float, raw: bool) -> FileData:
         seq=pick("seq"),
         seq_first=pick("seq_first"),
         seq_prev=pick("seq_prev"),
-        snap=frame["is_snapshot"].to_numpy()[first].astype(np.bool_),
-        epoch=frame["sync_epoch"].to_numpy()[first].astype(np.int32),
+        snap=column("is_snapshot")[first].astype(np.bool_),
+        epoch=column("sync_epoch")[first].astype(np.int32),
         tick_errors=tick_errors,
         order_violations=int(np.count_nonzero(np.diff(bids) <= 0)),
     )
@@ -279,21 +288,40 @@ def load_rest_checkpoints(
     return out
 
 
-def load_crc_checkpoints(root: Path, venue: str, symbol: str, day: date) -> pl.DataFrame:
-    parts = [
-        pl.read_parquet(p, columns=["kind", "batch_id", "expected", "ok_live"])
-        for p in day_files(root, "checkpoints", venue, symbol, day)
-    ]
-    if not parts:
-        return pl.DataFrame(
-            schema={"batch_id": pl.Int64, "expected": pl.Int64, "ok_live": pl.Boolean}
+@dataclass
+class CrcCheckpoints:
+    """Kraken checksum checkpoints of one day, sorted by batch_id."""
+
+    batch_id: npt.NDArray[np.int64]
+    expected: npt.NDArray[np.int64]
+    ok_live: npt.NDArray[np.bool_]
+
+    @property
+    def total(self) -> int:
+        return len(self.batch_id)
+
+    def live(self) -> CrcCheckpoints:
+        keep = self.ok_live
+        return CrcCheckpoints(self.batch_id[keep], self.expected[keep], self.ok_live[keep])
+
+
+def load_crc_checkpoints(root: Path, venue: str, symbol: str, day: date) -> CrcCheckpoints:
+    ids: list[npt.NDArray[np.int64]] = []
+    exp: list[npt.NDArray[np.int64]] = []
+    ok: list[npt.NDArray[np.bool_]] = []
+    for path in day_files(root, "checkpoints", venue, symbol, day):
+        table = pq.read_table(path, columns=["kind", "batch_id", "expected", "ok_live"])
+        table = table.filter(pc.equal(table.column("kind"), "kraken_crc32"))
+        ids.append(np.asarray(table.column("batch_id").to_numpy(), dtype=np.int64))
+        exp.append(
+            np.asarray(pc.fill_null(table.column("expected"), -1).to_numpy(), dtype=np.int64)
         )
-    return (
-        pl.concat(parts)
-        .filter(pl.col("kind") == "kraken_crc32")
-        .select("batch_id", "expected", "ok_live")
-        .sort("batch_id")
-    )
+        ok.append(np.asarray(table.column("ok_live").to_numpy(), dtype=np.bool_))
+    if not ids:
+        return CrcCheckpoints(np.zeros(0, np.int64), np.zeros(0, np.int64), np.zeros(0, np.bool_))
+    batch = np.concatenate(ids)
+    order = np.argsort(batch, kind="stable")
+    return CrcCheckpoints(batch[order], np.concatenate(exp)[order], np.concatenate(ok)[order])
 
 
 # ---- per-day results ------------------------------------------------------------------------
@@ -501,7 +529,7 @@ class Rebuilder:
         rest_queue = [cp for cp in rest_queue if not cp.resolved]
         pending: list[RestCheckpoint] = []
         crc_day: date | None = None
-        crc: pl.DataFrame | None = None
+        crc: CrcCheckpoints | None = None
         event_idx: dict[date, int] = {d: 0 for d in out_days}
 
         loaded = self._files(plan)
@@ -554,14 +582,14 @@ class Rebuilder:
             crc_expected = np.zeros(f.n_batches, dtype=np.int64)
             if self.raw and emit:
                 if crc_day != day:
-                    crc = load_crc_checkpoints(self.root, self.venue, self.symbol, day)
+                    all_crc = load_crc_checkpoints(self.root, self.venue, self.symbol, day)
                     crc_day = day
                     st = stats[day]
-                    st.crc_total += crc.height
-                    st.crc_live_fail += int((~crc["ok_live"]).sum())
-                    crc = crc.filter(pl.col("ok_live"))
+                    st.crc_total += all_crc.total
+                    st.crc_live_fail += int((~all_crc.ok_live).sum())
+                    crc = all_crc.live()
                 assert crc is not None
-                ids = crc["batch_id"].to_numpy()
+                ids = crc.batch_id
                 if f.n_batches:
                     a = np.searchsorted(ids, f.batch_id[0], side="left")
                     z = np.searchsorted(ids, f.batch_id[-1], side="right")
@@ -571,7 +599,7 @@ class Rebuilder:
                         f.batch_id[np.minimum(pos, f.n_batches - 1)] == want
                     )
                     crc_want[pos[hit]] = True
-                    crc_expected[pos[hit]] = crc["expected"].to_numpy()[a:z][hit]
+                    crc_expected[pos[hit]] = crc.expected[a:z][hit]
             result = self._kernel(f, b0, probes, crc_want)
             self._account(day, emit, f, b0, result, crc_want, crc_expected, stats)
             if emit and self.write:
