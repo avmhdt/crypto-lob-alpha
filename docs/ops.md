@@ -90,6 +90,22 @@ uv run lob record gaplog --start 2026-11-18 --end 2026-12-01
 
 Those are the dates AC-W-01 is judged on (owner decision of 2026-11-17). This writes `reports/gap_log.csv`, `reports/tables/coverage.csv` and `reports/tables/coverage_by_day.csv`. Rows with reason `clock` are kept in the log but do not count as downtime, because data still arrived.
 
+## Rebuild and validate (M3)
+
+Read-only on the capture. Output goes to `interim/` under the data directory, and the reports go to `reports/validation/`. While the recorder is up, run heavy steps niced, at idle I/O priority, and with every thread pool capped. NumPy's BLAS, Numba and Polars otherwise each start one thread per core, and that load showed up in the recorder's ingest p99 on 2026-11-20:
+
+```bash
+export OMP_NUM_THREADS=4 OPENBLAS_NUM_THREADS=4 MKL_NUM_THREADS=4 NUMEXPR_NUM_THREADS=4 NUMBA_NUM_THREADS=1 POLARS_MAX_THREADS=4
+nice -n 19 ionice -c3 uv run lob book rebuild --start 2026-11-01 --end 2026-11-20
+uv run lob book validate --start 2026-11-01 --end 2026-11-20
+uv run lob verify AC-W-02
+uv run lob verify AC-W-03
+uv run lob dq report --start 2026-11-01 --end 2026-11-20
+uv run lob validate external --kind binance-vision --venue binance-usdm --symbol BTCUSDT --day 2026-11-19
+```
+
+`rebuild` writes `interim/topn` and `interim/bbo_rebuilt`, one part per input part, and per-day stats under `interim/validation/`. `--venue` and `--symbol` narrow it, and `--no-write` checks without writing tables. `validate` turns the stats into `checkpoints_summary.csv`, `crossed_books.csv` and `checkpoint_failures.csv`, and exits 1 on any failure. The Binance Vision check downloads the day's `aggTrades` zip and its checksum into `raw/external/binance_vision/`. The Tardis check (`--kind tardis`) works only for a first-of-month day.
+
 ## Disk
 
 - Retention: canonical data, gaps, checkpoints and clock are kept. The raw archive is pruned after `LOB_RAW_ARCHIVE_DAYS`.

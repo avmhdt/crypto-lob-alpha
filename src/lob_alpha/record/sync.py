@@ -462,6 +462,13 @@ class BookStream(_Stream):
             snapshot.bids[:CHECKPOINT_LEVELS_PER_SIDE], snapshot.asks[:CHECKPOINT_LEVELS_PER_SIDE],
         )  # fmt: skip
 
+    def on_checkpoint_skipped(self, ts: int, kind: str) -> None:
+        """A checkpoint slot that fell while the book was not LIVE: a row with no levels."""
+        self.ctx.sink.checkpoint(
+            self.ctx.venue, self.symbol, f"{kind}-{ts}", ts, kind, 0, self.last_batch,
+            None, None, False, 0,
+        )  # fmt: skip
+
     def dump(self) -> dict[str, Any]:
         state: dict[str, Any] = {
             "state": str(self.state),
@@ -705,6 +712,9 @@ class VenuePipeline:
             self.books[ctrl["symbol"]].on_checkpoint(
                 ctrl["checkpoint"], self.adapter.parse_snapshot(body, ctrl["symbol"], ts)
             )
+            return []
+        if kind == "checkpoint_skip":
+            self.books[ctrl["symbol"]].on_checkpoint_skipped(ts, ctrl["checkpoint"])
             return []
         if kind == "snapshot_error":
             self.books[ctrl["symbol"]].on_snapshot_error(ts, ctrl["error"])

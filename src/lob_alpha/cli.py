@@ -23,8 +23,15 @@ from lob_alpha.settings import RecorderConfig, Settings, load_recorder_config
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 record_app = typer.Typer(no_args_is_help=True, help="Recorder commands.")
 meta_app = typer.Typer(no_args_is_help=True, help="Instrument metadata.")
+book_app = typer.Typer(no_args_is_help=True, help="Offline book rebuild and validation.")
+dq_app = typer.Typer(no_args_is_help=True, help="Data-quality reports.")
+validate_app = typer.Typer(no_args_is_help=True, help="External cross-checks.")
 app.add_typer(record_app, name="record")
 app.add_typer(meta_app, name="meta")
+app.add_typer(book_app, name="book")
+app.add_typer(dq_app, name="dq")
+app.add_typer(validate_app, name="validate")
+VALIDATION_DIR = Path("reports/validation")
 
 ConfigOption = Annotated[Path, typer.Option("--config", help="Recorder config file.")]
 DEFAULT_CONFIG = Path("config/recorder.yaml")
@@ -62,6 +69,26 @@ def configure_logging(settings: Settings) -> None:
 
 def _pairs(recorder: RecorderConfig) -> list[tuple[str, str]]:
     return [(v, s) for v in recorder.venue_set for s in recorder.venues[v].symbols]
+
+
+def _streams(recorder: RecorderConfig) -> list[Any]:
+    from lob_alpha.reports.gaplog import Stream  # noqa: PLC0415
+
+    streams: list[Stream] = []
+    for venue in recorder.venue_set:
+        cfg = recorder.venues[venue]
+        kinds = ["book", "trades", "bbo"] if venue == "binance-usdm" else ["book", "trades"]
+        streams += [Stream(venue, s, k) for s in cfg.symbols for k in kinds]
+    return streams
+
+
+def _select(
+    recorder: RecorderConfig, venue: str | None, symbol: str | None
+) -> list[tuple[str, str]]:
+    pairs = [(v, s) for v, s in _pairs(recorder) if venue in (None, v) and symbol in (None, s)]
+    if not pairs:
+        raise typer.BadParameter(f"no configured stream for venue={venue} symbol={symbol}")
+    return pairs
 
 
 @record_app.command("run")
@@ -206,11 +233,7 @@ def record_gaplog(
 
     settings = Settings()
     recorder = load_recorder_config(config, settings)
-    streams: list[Stream] = []
-    for venue in recorder.venue_set:
-        cfg = recorder.venues[venue]
-        kinds = ["book", "trades", "bbo"] if venue == "binance-usdm" else ["book", "trades"]
-        streams += [Stream(venue, s, k) for s in cfg.symbols for k in kinds]
+    streams: list[Stream] = _streams(recorder)
     log, coverage = publish(
         settings.data_dir,
         streams,
@@ -266,6 +289,161 @@ def meta_fetch(
         dump_instruments(instruments, instruments_path)
     for line in changes or ["no changes"]:
         typer.echo(line)
+
+
+Day = Annotated[str, typer.Option(help="UTC date YYYY-MM-DD.")]
+VenueOpt = Annotated[str | None, typer.Option("--venue", help="Venue id; default every venue.")]
+SymbolOpt = Annotated[str | None, typer.Option("--symbol", help="Venue-native symbol.")]
+
+
+@book_app.command("rebuild")
+def book_rebuild(
+    start: Day,
+    end: Day,
+    venue: VenueOpt = None,
+    symbol: SymbolOpt = None,
+    write: Annotated[bool, typer.Option("--write/--no-write", help="Write interim tables.")] = True,
+    config: ConfigOption = DEFAULT_CONFIG,
+) -> None:
+    """Replay book_l2 into interim/{topn,bbo_rebuilt} and record per-day validation stats."""
+    import time  # noqa: PLC0415
+
+    from lob_alpha.validate.rebuild import Rebuilder, save_stats  # noqa: PLC0415
+
+    settings = Settings()
+    recorder = load_recorder_config(config, settings)
+    instruments = load_instruments(config.parent / "instruments.yaml")
+    first, last = date.fromisoformat(start), date.fromisoformat(end)
+    for v, s in _select(recorder, venue, symbol):
+        cfg = recorder.venues[v]
+        tick = instruments.get(v, s, first).tick_size
+        rebuilder = Rebuilder(
+            settings.data_dir, v, s, tick, depth=getattr(cfg, "book_depth", None),
+            raw=(v == "kraken"), write=write,
+        )  # fmt: skip
+        t0 = time.perf_counter()
+        stats = rebuilder.run(first, last)
+        save_stats(settings.data_dir, stats)
+        rows = sum(st.rows for st in stats)
+        crossed = sum(st.crossed + st.locked for st in stats)
+        typer.echo(
+            f"{v} {s}: {len(stats)} days, {rows} rows, {crossed} crossed or locked, "
+            f"{time.perf_counter() - t0:.0f} s"
+        )
+
+
+@book_app.command("validate")
+def book_validate(
+    start: Day,
+    end: Day,
+    venue: VenueOpt = None,
+    symbol: SymbolOpt = None,
+    out_dir: Annotated[Path, typer.Option("--out-dir")] = VALIDATION_DIR,
+    config: ConfigOption = DEFAULT_CONFIG,
+) -> None:
+    """Write checkpoints_summary.csv and crossed_books.csv from rebuild stats.
+
+    Exits 1 on any failure.
+    """
+    from lob_alpha.validate import report  # noqa: PLC0415
+    from lob_alpha.validate.dq import complete_days  # noqa: PLC0415
+    from lob_alpha.validate.rebuild import load_stats  # noqa: PLC0415
+
+    settings = Settings()
+    recorder = load_recorder_config(config, settings)
+    wanted = set(_select(recorder, venue, symbol))
+    stats = [
+        st for st in load_stats(settings.data_dir)
+        if (st["venue"], st["symbol"]) in wanted and start <= st["date"] <= end
+    ]  # fmt: skip
+    if not stats:
+        typer.echo("no rebuild stats in range: run `lob book rebuild` first")
+        raise typer.Exit(code=1)
+    full = complete_days(
+        settings.data_dir, _streams(recorder), date.fromisoformat(start), date.fromisoformat(end)
+    )
+    complete = {
+        (r["venue"], r["symbol"], r["date"])
+        for r in full.filter(full["complete"]).iter_rows(named=True)
+    }
+    summary = report.summary_rows(stats, complete)
+    crossed = report.crossed_rows(stats)
+    report.write_csv(out_dir / "checkpoints_summary.csv", summary, report.SUMMARY_FIELDS)
+    report.write_csv(out_dir / "crossed_books.csv", crossed, report.CROSSED_FIELDS)
+    report.write_csv(out_dir / "checkpoint_failures.csv", report.failure_rows(stats))
+    ok2, text2 = report.verdict_ac_w_02(crossed)
+    ok3, text3 = report.verdict_ac_w_03(summary)
+    typer.echo(f"AC-W-02 {'PASS' if ok2 else 'FAIL'}: {text2}")
+    typer.echo(f"AC-W-03 {'PASS' if ok3 else 'FAIL'}: {text3}")
+    if not (ok2 and ok3):
+        raise typer.Exit(code=1)
+
+
+@dq_app.command("report")
+def dq_report(
+    start: Day,
+    end: Day,
+    out: Annotated[Path, typer.Option("--out")] = VALIDATION_DIR / "dq_report.md",
+    config: ConfigOption = DEFAULT_CONFIG,
+) -> None:
+    """Row counts, coverage, duplicates, clock offsets and complete days, as Markdown."""
+    from lob_alpha.validate.dq import report  # noqa: PLC0415
+
+    settings = Settings()
+    recorder = load_recorder_config(config, settings)
+    text = report(
+        settings.data_dir, _streams(recorder), date.fromisoformat(start), date.fromisoformat(end)
+    )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    typer.echo(f"wrote {out}")
+
+
+@validate_app.command("external")
+def validate_external(
+    kind: Annotated[str, typer.Option(help="binance-vision or tardis.")],
+    venue: Annotated[str, typer.Option(help="Venue id.")],
+    symbol: Annotated[str, typer.Option(help="Venue-native symbol.")],
+    day: Day,
+    tardis_symbol: Annotated[str | None, typer.Option(help="Tardis symbol if it differs.")] = None,
+    out_dir: Annotated[Path, typer.Option("--out-dir")] = VALIDATION_DIR,
+) -> None:
+    """Cross-check one symbol-day against Binance Vision or a Tardis free sample (FR-16)."""
+    from lob_alpha.validate import external  # noqa: PLC0415
+
+    settings = Settings()
+    when = date.fromisoformat(day)
+    result: Any
+    if kind == "binance-vision":
+        result = external.binance_vision(settings.data_dir, venue, symbol, when)
+        external.upsert_csv(out_dir / "external_binance_vision.csv", result)
+    elif kind == "tardis":
+        tick = load_instruments().get(venue, symbol, when).tick_size
+        result = external.tardis(settings.data_dir, venue, symbol, when, tick, tardis_symbol)
+        external.upsert_csv(out_dir / "external_tardis.csv", result)
+    else:
+        raise typer.BadParameter("kind must be binance-vision or tardis")
+    typer.echo(json.dumps(result.__dict__, indent=1))
+
+
+@app.command("verify")
+def verify(
+    ac_id: Annotated[str, typer.Argument(help="Acceptance criterion, e.g. AC-W-03.")],
+    out_dir: Annotated[Path, typer.Option("--out-dir")] = VALIDATION_DIR,
+) -> None:
+    """Run the check listed for an acceptance criterion; exit 0 = pass."""
+    from lob_alpha.validate import report  # noqa: PLC0415
+
+    if ac_id == "AC-W-02":
+        ok, text = report.verdict_ac_w_02(report.read_csv(out_dir / "crossed_books.csv"))
+    elif ac_id == "AC-W-03":
+        ok, text = report.verdict_ac_w_03(report.read_csv(out_dir / "checkpoints_summary.csv"))
+    else:
+        typer.echo(f"{ac_id}: no automated check yet")
+        raise typer.Exit(code=2)
+    typer.echo(f"{ac_id} {'PASS' if ok else 'FAIL'}: {text}")
+    if not ok:
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":
