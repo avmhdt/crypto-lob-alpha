@@ -92,9 +92,10 @@ Those are the dates AC-W-01 is judged on (owner decision of 2026-11-17). This wr
 
 ## Rebuild and validate (M3)
 
-Read-only on the capture. Output goes to `interim/` under the data directory, and the reports go to `reports/validation/`. Run at idle priority while the recorder is up:
+Read-only on the capture. Output goes to `interim/` under the data directory, and the reports go to `reports/validation/`. While the recorder is up, run heavy steps niced, at idle I/O priority, and with every thread pool capped. NumPy's BLAS, Numba and Polars otherwise each start one thread per core, and that load showed up in the recorder's ingest p99 on 2026-11-20:
 
 ```bash
+export OMP_NUM_THREADS=4 OPENBLAS_NUM_THREADS=4 MKL_NUM_THREADS=4 NUMEXPR_NUM_THREADS=4 NUMBA_NUM_THREADS=1 POLARS_MAX_THREADS=4
 nice -n 19 ionice -c3 uv run lob book rebuild --start 2026-11-01 --end 2026-11-20
 uv run lob book validate --start 2026-11-01 --end 2026-11-20
 uv run lob verify AC-W-02
