@@ -144,7 +144,7 @@ def test_vision_completeness_separates_gaps(tmp_path: Path, header: bool) -> Non
     vision = external.vision_ids(zip_path)
     recorded = pl.DataFrame({"agg_trade_id": [1, 2, 5, 9], "ts_exchange": [0, 0, 0, 0]})
     # ids 3 and 4 trade at 2 s and 3 s; the gap at 2 s plus the 2 s margin covers both
-    gap = (t(day, 0, 2) - 100, t(day, 0, 2) + 100)
+    gap = (t(day, 0, 2) - 100, t(day, 0, 2) + 100, None)
     res = external.compare_vision(vision, recorded, [gap], "binance-usdm", "BTCUSDT", day, True)
     assert res.vision_ids == 5 and res.missing == 2 and res.extra == 1
     assert res.missing_in_gaps == 2 and res.missing_live == 0
@@ -250,3 +250,16 @@ def test_complete_days_start_after_capture_start(tmp_path: Path) -> None:
     days = complete_days(tmp_path, streams, D1, D2)
     assert days.filter(pl.col("date") == str(D1))["complete"].item() is False
     assert days.filter(pl.col("date") == str(D2))["complete"].item() is True
+
+
+def test_vision_gap_by_last_id_covers_a_lagging_feed() -> None:
+    day = date(2026, 11, 3)
+    base = t(day, 13, 0) // 1_000_000
+    vision = pl.DataFrame(
+        {"agg_trade_id": list(range(1, 11)), "transact_time": [base + 1000 * i for i in range(10)]}
+    )
+    recorded = pl.DataFrame({"agg_trade_id": [1, 2, 9, 10], "ts_exchange": [0, 0, 0, 0]})
+    # received-time bounds far from the lost trades, but the last id before the gap was 2
+    gap = (t(day, 14, 0), t(day, 14, 0) + 4 * 10**9, 2)
+    res = external.compare_vision(vision, recorded, [gap], "binance-usdm", "BTCUSDT", day, True)
+    assert res.missing == 6 and res.missing_in_gaps == 6 and res.missing_live == 0

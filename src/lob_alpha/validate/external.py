@@ -155,18 +155,33 @@ def _pct(part: int, whole: int) -> float:
 
 
 def compare_vision(
-    vision: pl.DataFrame, recorded: pl.DataFrame, gaps: list[tuple[int, int]],
+    vision: pl.DataFrame, recorded: pl.DataFrame, gaps: list[tuple[int, int, int | None]],
     venue: str, symbol: str, day: date, sha_ok: bool,
 ) -> VisionResult:  # fmt: skip
+    """Missing ids, split into those inside a logged trades gap and those in LIVE time.
+
+    A gap covers the ids after its `seq_before` (the last id received) up to the next id the
+    recorder has. That matters when the feed lags before a drop: on 2026-11-03 the last trade
+    before a 4 s gap traded 23 s before it was received, so the gap's receive-time bounds miss
+    most of the ids it lost. Gaps without `seq_before` fall back to time, widened by
+    `GAP_MARGIN_S`.
+    """
     v_ids = vision["agg_trade_id"].unique()
     r_ids = recorded["agg_trade_id"].unique()
     missing = vision.filter(~pl.col("agg_trade_id").is_in(r_ids.implode()))
     extra = int((~r_ids.is_in(v_ids.implode())).sum())
     t = missing["transact_time"].to_numpy().astype(np.int64) * MS
+    ids = missing["agg_trade_id"].to_numpy()
+    have = np.sort(r_ids.to_numpy())
     in_gap = np.zeros(len(t), dtype=bool)
     margin = int(GAP_MARGIN_S * NS)
-    for start, end in gaps:
-        in_gap |= (t >= start - margin) & (t <= end + margin)
+    for start, end, before in gaps:
+        if before is not None:
+            k = np.searchsorted(have, before, side="right")
+            after = have[k] if k < len(have) else np.iinfo(np.int64).max
+            in_gap |= (ids > before) & (ids < after)
+        else:
+            in_gap |= (t >= start - margin) & (t <= end + margin)
     n_v = len(v_ids)
     n_missing = missing.height
     n_in_gap = int(in_gap.sum())
@@ -180,13 +195,16 @@ def compare_vision(
     )  # fmt: skip
 
 
-def trade_gaps(data_dir: Path, venue: str, symbol: str) -> list[tuple[int, int]]:
+def trade_gaps(data_dir: Path, venue: str, symbol: str) -> list[tuple[int, int, int | None]]:
     gaps = load_gaps(data_dir)
     rows = gaps.filter(
         (pl.col("venue") == venue) & (pl.col("symbol").is_in([symbol, "*"]))
         & (pl.col("stream") == "trades") & (pl.col("reason") != "clock")
     )  # fmt: skip
-    return [(int(a), int(b)) for a, b in rows.select("start_ns", "end_ns").iter_rows()]
+    return [
+        (int(a), int(b), None if c is None else int(c))
+        for a, b, c in rows.select("start_ns", "end_ns", "seq_before").iter_rows()
+    ]
 
 
 def binance_vision(data_dir: Path, venue: str, symbol: str, day: date) -> VisionResult:
