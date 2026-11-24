@@ -56,3 +56,24 @@ class Comparison:
     event_hi: float
     n_days_clock: int
     n_days_event: int
+
+
+def write_table(path: Path, rows: list[Comparison]) -> None:
+    import csv  # noqa: PLC0415
+    from dataclasses import asdict  # noqa: PLC0415
+
+    from lob_alpha.research.decay import _fmt  # noqa: PLC0415
+
+    key = ("venue", "symbol", "clock_horizon_ms")
+    new = [{k: _fmt(v) for k, v in asdict(r).items()} for r in rows]
+    keys = {tuple(r[k] for k in key) for r in new}
+    old: list[dict[str, str]] = []
+    if path.exists():
+        with path.open(encoding="utf-8", newline="") as fh:
+            old = [r for r in csv.DictReader(fh) if tuple(r[k] for k in key) not in keys]
+    merged = sorted(old + new, key=lambda r: (r["venue"], r["symbol"], int(r["clock_horizon_ms"])))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(asdict(rows[0])), lineterminator="\n")
+        w.writeheader()
+        w.writerows(merged)

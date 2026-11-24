@@ -52,3 +52,12 @@ def test_half_life_ci_brackets_point() -> None:
     assert hl.half_life_ms is not None and hl.lo is not None and hl.hi is not None
     assert hl.lo <= hl.half_life_ms <= hl.hi
     assert 10 < hl.half_life_ms < 100
+
+
+def test_event_horizon_match_on_log_scale() -> None:
+    from lob_alpha.research.event_clock import match
+
+    durations = {1: 4.0, 10: 60.0, 50: 400.0, 100: 900.0, 250: 2600.0}
+    assert match(1000, durations) == 100  # |log 900 - log 1000| < |log 2600 - log 1000|
+    assert match(5000, durations) == 250
+    assert match(100, {5: float("nan"), 10: 60.0}) == 10

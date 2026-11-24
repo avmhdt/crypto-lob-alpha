@@ -753,6 +753,82 @@ def stability_cmd(
         stability.forest(figures / "stability_forest.png", list(csv.DictReader(fh)))
 
 
+@app.command("event-vs-clock")
+def event_vs_clock_cmd(
+    run_id: Annotated[str, typer.Option("--run-id", help="A clock-time run.")],
+    clock_horizons: Annotated[str, typer.Option(help="Comma-separated ms.")] = "1000,5000",
+    config: ResearchConfig = DEFAULT_RESEARCH,
+    results: Annotated[Path, typer.Option("--results")] = Path("results"),
+    tables: Annotated[Path, typer.Option("--tables")] = Path("reports/tables"),
+) -> None:
+    """Clock vs event models at matched horizons, with day-block CIs (FR-27)."""
+    from lob_alpha import explog  # noqa: PLC0415
+    from lob_alpha.models.train import Runner, RunSpec, Target  # noqa: PLC0415
+    from lob_alpha.research import decay, event_clock  # noqa: PLC0415
+
+    cfg = _research(config)
+    settings = Settings()
+    base = json.loads((results / "runs" / run_id / "config.json").read_text(encoding="utf-8"))
+    if Target.parse(base["target"]).clock != "time":
+        raise typer.BadParameter("--run-id must be a clock-time run")
+    inst = load_instruments().get(base["venue"], base["symbol"])
+    done = {
+        explog.canonical_json(json.loads(r["params_json"])): r["run_id"]
+        for r in explog.read_rows(results / explog.TRIAL_LOG.name)
+        if r["x_status"] == "ok"
+    }
+
+    def ensure(params: dict[str, Any]) -> str:
+        rid = done.get(explog.canonical_json(params))
+        if rid is None:
+            spec = RunSpec.from_params(params, inst.tick_size, notes=f"event-vs-clock of {run_id}")
+            rid = Runner(spec, settings.data_dir, results).run().run_id
+            done[explog.canonical_json(params)] = rid
+        return rid
+
+    first_train = [date.fromisoformat(d) for d in base["days"][:5]]
+    hev = [int(h) for h in cfg.get("labels", {}).get("horizons_events", [])]
+    durations = event_clock.median_event_duration_ms(
+        settings.data_dir, base["venue"], base["symbol"], first_train, hev
+    )
+    event_feats = list(cfg["models"]["feature_sets"]["event"])
+    rows = []
+    for hc in (int(x) for x in clock_horizons.split(",")):
+        he = event_clock.match(hc, durations)
+        crid = ensure(base | {"target": f"dmid_ticks_time_{hc}"})
+        erid = ensure(base | {"target": f"dmid_ticks_event_{he}", "features": event_feats})
+        cs, es = (
+            decay.run_day_stats(settings.data_dir, crid),
+            decay.run_day_stats(settings.data_dir, erid),
+        )
+        clo, chi = decay.bootstrap(cs)
+        elo, ehi = decay.bootstrap(es)
+        rows.append(
+            event_clock.Comparison(
+                base["venue"],
+                base["symbol"],
+                hc,
+                he,
+                durations[he],
+                crid,
+                erid,
+                decay.pooled_r2(cs),
+                clo,
+                chi,
+                decay.pooled_r2(es),
+                elo,
+                ehi,
+                len(cs),
+                len(es),
+            )
+        )
+        typer.echo(
+            f"{hc} ms vs {he} batches (median {durations[he]:.0f} ms): clock R2 "
+            f"{rows[-1].clock_r2:.4f}, event R2 {rows[-1].event_r2:.4f}"
+        )
+    event_clock.write_table(tables / "event_vs_clock.csv", rows)
+
+
 @app.command("export-model")
 def export_model_cmd(
     run_id: Annotated[str, typer.Option("--run-id")],
