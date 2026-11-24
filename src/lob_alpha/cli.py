@@ -426,6 +426,118 @@ def validate_external(
     typer.echo(json.dumps(result.__dict__, indent=1))
 
 
+features_app = typer.Typer(no_args_is_help=True, help="Features and labels (M4).")
+labels_app = typer.Typer(no_args_is_help=True, help="Labels (built with the features).")
+ofi_app = typer.Typer(no_args_is_help=True, help="OFI replication.")
+app.add_typer(features_app, name="features")
+app.add_typer(labels_app, name="labels")
+app.add_typer(ofi_app, name="ofi")
+ResearchConfig = Annotated[Path, typer.Option("--config", help="Research config file.")]
+DEFAULT_RESEARCH = Path("config/research.yaml")
+
+
+def _research(path: Path) -> dict[str, Any]:
+    import yaml  # noqa: PLC0415
+
+    with path.open(encoding="utf-8") as handle:
+        loaded = yaml.safe_load(handle)
+    return dict(loaded or {})
+
+
+def _universe(cfg: dict[str, Any], venue: str | None, symbol: str | None) -> list[tuple[str, str]]:
+    pairs = [(u["venue"], u["symbol"]) for u in cfg.get("universe", [])]
+    pairs = [(v, s) for v, s in pairs if venue in (None, v) and symbol in (None, s)]
+    if not pairs:
+        raise typer.BadParameter(f"no universe entry for venue={venue} symbol={symbol}")
+    return pairs
+
+
+@features_app.command("build")
+def features_build(
+    start: Day,
+    end: Day,
+    venue: VenueOpt = None,
+    symbol: SymbolOpt = None,
+    grid: Annotated[str, typer.Option(help="time, event or both.")] = "both",
+    config: ResearchConfig = DEFAULT_RESEARCH,
+) -> None:
+    """Build processed/features and processed/labels from interim/topn and trades."""
+    from datetime import timedelta  # noqa: PLC0415
+
+    from lob_alpha.features.build import Params, build_day  # noqa: PLC0415
+
+    cfg = _research(config)
+    params = Params.from_config(cfg)
+    grids = ("time", "event") if grid == "both" else (grid,)
+    settings = Settings()
+    first, last = date.fromisoformat(start), date.fromisoformat(end)
+    for v, s in _universe(cfg, venue, symbol):
+        day = first
+        while day <= last:
+            res, _ = build_day(settings.data_dir, v, s, day, params, grids=grids)
+            typer.echo(
+                f"{v} {s} {day}: time {res.time_rows} rows, event {res.event_rows} rows, "
+                f"{res.bytes_written / 1e6:.0f} MB, {res.seconds:.0f} s"
+            )
+            day += timedelta(days=1)
+
+
+@labels_app.command("build")
+def labels_build(
+    start: Day,
+    end: Day,
+    venue: VenueOpt = None,
+    symbol: SymbolOpt = None,
+    grid: Annotated[str, typer.Option(help="time, event or both.")] = "both",
+    config: ResearchConfig = DEFAULT_RESEARCH,
+) -> None:
+    """Same pass as `lob features build`: labels are written beside the features."""
+    features_build(start, end, venue, symbol, grid, config)
+
+
+@ofi_app.command("replicate")
+def ofi_replicate(
+    start: Day,
+    end: Day,
+    config: ResearchConfig = DEFAULT_RESEARCH,
+    recorder_config: Annotated[Path, typer.Option("--recorder-config")] = DEFAULT_CONFIG,
+    out: Annotated[Path, typer.Option("--out")] = Path("reports/tables/ofi_replication.csv"),
+    figures: Annotated[Path, typer.Option("--figures")] = Path("reports/figures"),
+) -> None:
+    """CKS OFI regressions per complete symbol-day (DQ-10); exit 1 if AC-W-04 fails."""
+    from lob_alpha.research import ofi  # noqa: PLC0415
+    from lob_alpha.validate.dq import complete_days  # noqa: PLC0415
+
+    cfg = _research(config)
+    settings = Settings()
+    recorder = load_recorder_config(recorder_config, settings)
+    first, last = date.fromisoformat(start), date.fromisoformat(end)
+    full = complete_days(settings.data_dir, _streams(recorder), first, last)
+    done = {
+        (r["venue"], r["symbol"], r["date"])
+        for r in full.filter(full["complete"]).iter_rows(named=True)
+    }
+    rows: list[Any] = []
+    for v, s in _universe(cfg, None, None):
+        days = sorted(d for vv, ss, d in done if (vv, ss) == (v, s))
+        for d in days:
+            rows += ofi.replicate_day(settings.data_dir, v, s, date.fromisoformat(d))
+        if days:
+            ofi.scatter(
+                figures / f"ofi_scatter_{v}_{s.replace('/', '-')}.png",
+                settings.data_dir,
+                v,
+                s,
+                date.fromisoformat(days[-1]),
+            )
+    ofi.write_table(out, rows)
+    ok, text = ofi.verdict(ofi.read_table(out))
+    typer.echo(f"{len(rows)} rows to {out}")
+    typer.echo(f"AC-W-04 {'PASS' if ok else 'FAIL'}: {text}")
+    if not ok:
+        raise typer.Exit(code=1)
+
+
 @app.command("verify")
 def verify(
     ac_id: Annotated[str, typer.Argument(help="Acceptance criterion, e.g. AC-W-03.")],
@@ -438,6 +550,10 @@ def verify(
         ok, text = report.verdict_ac_w_02(report.read_csv(out_dir / "crossed_books.csv"))
     elif ac_id == "AC-W-03":
         ok, text = report.verdict_ac_w_03(report.read_csv(out_dir / "checkpoints_summary.csv"))
+    elif ac_id == "AC-W-04":
+        from lob_alpha.research import ofi  # noqa: PLC0415
+
+        ok, text = ofi.verdict(ofi.read_table(Path("reports/tables/ofi_replication.csv")))
     else:
         typer.echo(f"{ac_id}: no automated check yet")
         raise typer.Exit(code=2)
