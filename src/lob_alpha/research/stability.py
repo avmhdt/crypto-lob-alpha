@@ -126,3 +126,111 @@ def forest(path: Path, rows: list[dict[str, str]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path)
     plt.close(fig)
+
+
+ASSET = {
+    "BTCUSDT": "BTC",
+    "ETHUSDT": "ETH",
+    "SOLUSDT": "SOL",
+    "BTC-USD": "BTC",
+    "ETH-USD": "ETH",
+    "SOL-USD": "SOL",
+    "BTC/USD": "BTC",
+    "ETH/USD": "ETH",
+    "SOL/USD": "SOL",
+}
+
+
+@dataclass
+class TransferRow:
+    asset: str
+    train_venue: str
+    train_symbol: str
+    test_venue: str
+    test_symbol: str
+    run_id: str
+    target: str
+    n_days: int
+    oos_r2: float
+    lo: float
+    hi: float
+    days: str
+
+
+def transfer(
+    data_root: Path,
+    results: Path,
+    run_id: str,
+    test_venue: str,
+    test_symbol: str,
+    test_tick: float,
+    train_tick: float,
+    test_days: set[str],
+) -> TransferRow:
+    """Apply each fold's model from run `run_id` (venue A) to venue B on the fold's test
+    day, where that day is complete for B too.
+
+    Features on B are normalised with statistics fitted on B's rows of the fold's own
+    training days (unsupervised, train-only), so the model sees each venue on its own
+    scale. Predictions are converted from A ticks to B ticks (x tick_A / tick_B). The
+    benchmark is the training mean of B's label over the same training days.
+    """
+    import json  # noqa: PLC0415
+    from datetime import date  # noqa: PLC0415
+
+    import lightgbm as lgb  # noqa: PLC0415
+
+    from lob_alpha.models import featureset  # noqa: PLC0415
+    from lob_alpha.models.data import load_day  # noqa: PLC0415
+
+    cfg = json.loads((results / "runs" / run_id / "config.json").read_text(encoding="utf-8"))
+    met = json.loads((results / "runs" / run_id / "metrics.json").read_text(encoding="utf-8"))
+    target, clock = cfg["target"], "time" if "_time_" in cfg["target"] else "event"
+    stats: list[decay.DayStat] = []
+    for f in met["folds"]:
+        day = f["test"][0]
+        if day not in test_days:
+            continue
+        fdir = data_root / "runs" / run_id / f"fold_{f['fold']:02d}"
+        prep_a = featureset.Prep.from_json(json.loads((fdir / "prep.json").read_text()))
+        names = prep_a.names
+        cols = featureset.stored_columns(names)
+        try:
+            train = [
+                load_day(
+                    data_root, test_venue, test_symbol, date.fromisoformat(d), clock, cols, [target]
+                )
+                for d in f["train"]
+            ]
+        except FileNotFoundError:
+            continue
+        tr = {k: np.concatenate([p.cols[k] for p in train]) for k in train[0].cols}
+        segs, a = [], 0
+        for p in train:
+            segs.append(slice(a, a + p.n))
+            a += p.n
+        prep_b = featureset.Prep(names).fit(tr, segs)
+        mu = float(np.nanmean(np.concatenate([p.labels[target] for p in train])))
+        test = load_day(
+            data_root, test_venue, test_symbol, date.fromisoformat(day), clock, cols, [target]
+        )
+        booster = lgb.Booster(model_file=str(fdir / "model.txt"))
+        yhat = np.asarray(booster.predict(prep_b.transform(test.cols)[1]), dtype=np.float64)
+        yhat *= train_tick / test_tick
+        y = test.labels[target]
+        stats.append(decay.day_stat(day, y, yhat, np.full(len(y), mu)))
+    lo, hi = decay.bootstrap(stats)
+    return TransferRow(
+        ASSET.get(cfg["symbol"], cfg["symbol"]),
+        cfg["venue"],
+        cfg["symbol"],
+        test_venue,
+        test_symbol,
+        run_id,
+        target,
+        len(stats),
+        decay.pooled_r2(stats) if stats else float("nan"),
+        lo,
+        hi,
+        " ".join(s.day for s in stats),
+    )

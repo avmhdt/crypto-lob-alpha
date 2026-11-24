@@ -734,15 +734,54 @@ def importance_cmd(
 @app.command("stability")
 def stability_cmd(
     run_id: Annotated[list[str], typer.Option("--run-id", help="One or more runs.")],
+    transfer: Annotated[
+        list[str] | None, typer.Option(help="Cross-venue test stream, venue:symbol.")
+    ] = None,
+    recorder_config: Annotated[Path, typer.Option("--recorder-config")] = DEFAULT_CONFIG,
     results: Annotated[Path, typer.Option("--results")] = Path("results"),
     tables: Annotated[Path, typer.Option("--tables")] = Path("reports/tables"),
     figures: Annotated[Path, typer.Option("--figures")] = Path("reports/figures"),
 ) -> None:
-    """Per-test-day OOS R2 with 95% CIs; forest plot over every run in the table (FR-25)."""
+    """Per-test-day OOS R2 with 95% CIs, forest plot, cross-venue transfer (FR-25)."""
     import csv  # noqa: PLC0415
+    from dataclasses import asdict  # noqa: PLC0415
 
-    from lob_alpha.research import stability  # noqa: PLC0415
+    from lob_alpha.research import decay, stability  # noqa: PLC0415
 
+    for rid in run_id:
+        for tv in transfer or []:
+            venue_b, _, symbol_b = tv.partition(":")
+            cfg = json.loads((results / "runs" / rid / "config.json").read_text(encoding="utf-8"))
+            insts = load_instruments()
+            days_b = {
+                str(d) for d in _complete_days(venue_b, symbol_b, None, None, recorder_config)
+            }
+            row = stability.transfer(
+                Settings().data_dir,
+                results,
+                rid,
+                venue_b,
+                symbol_b,
+                insts.get(venue_b, symbol_b).tick_size,
+                insts.get(cfg["venue"], cfg["symbol"]).tick_size,
+                days_b,
+            )
+            path = tables / "cross_venue.csv"
+            old: list[dict[str, str]] = []
+            if path.exists():
+                with path.open(encoding="utf-8", newline="") as fh:
+                    old = [
+                        r
+                        for r in csv.DictReader(fh)
+                        if (r["run_id"], r["test_venue"]) != (rid, venue_b)
+                    ]
+            new = {k: decay._fmt(v) for k, v in asdict(row).items()}
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("w", encoding="utf-8", newline="") as fh:
+                w = csv.DictWriter(fh, fieldnames=list(new), lineterminator="\n")
+                w.writeheader()
+                w.writerows([*old, new])
+            typer.echo(f"{rid} -> {tv}: {row.n_days} days, OOS R2 {row.oos_r2:.4f}")
     for rid in run_id:
         cfg = json.loads((results / "runs" / rid / "config.json").read_text(encoding="utf-8"))
         rows = stability.run_days(Settings().data_dir, cfg, rid)

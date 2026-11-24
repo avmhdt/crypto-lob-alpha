@@ -154,3 +154,18 @@ def test_stability_and_decay_on_run(artifact: tuple[Path, Path, str], tmp_path: 
     row = decay.curve_row(meta, 1000, 0, stats)
     decay.write_rows(tmp_path / "decay.csv", [row], ("venue", "horizon", "latency_ms"))
     assert (tmp_path / "decay.csv").read_text().count("\n") == 2
+
+
+def test_transfer_to_itself_matches_the_run(artifact: tuple[Path, Path, str]) -> None:
+    from lob_alpha.research import decay, stability
+
+    root, _, run_id = artifact
+    days = {"2026-04-12"}
+    row = stability.transfer(root, root / "results", run_id, VENUE, SYMBOL, 0.1, 0.1, days)
+    own = decay.pooled_r2(decay.run_day_stats(root, run_id))
+    assert row.n_days == 1 and row.days == "2026-04-12"
+    assert abs(row.oos_r2 - own) < 0.02  # only the purge of the last training day differs
+    assert (
+        stability.transfer(root, root / "results", run_id, VENUE, SYMBOL, 0.1, 0.1, set()).n_days
+        == 0
+    )
