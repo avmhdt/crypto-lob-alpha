@@ -29,6 +29,22 @@ labels:
   latencies_ms: [0, 1, 5, 10, 25, 50, 100, 250, 500, 1000]
 walk_forward: {train_days: 5, val_days: 1, test_days: 1, step_days: 1, purge_s: 31}
 models:
+  # Model inputs (src/lob_alpha/models/featureset.py). ms windows on the clock grid; batch
+  # and trade-count windows on the event grid. Every kind is one market-making-sim
+  # implements online (its docs/signal-artifact.md).
+  feature_sets:
+    time: [ofi_l1_ms100, ofi_l1_ms1000, ofi_l1_ms10000,
+           mlofi_l2_ms1000, mlofi_l3_ms1000, mlofi_l4_ms1000, mlofi_l5_ms1000, mlofi_l6_ms1000,
+           mlofi_l7_ms1000, mlofi_l8_ms1000, mlofi_l9_ms1000, mlofi_l10_ms1000,
+           integrated_ofi_ms1000, qi_l1, qi_l5, microprice_adj_ticks, wmid_adj_ticks,
+           spread_ticks, tsi_vol_ms1000, tsi_cnt_ms1000, tsi_vol_ms10000, tsi_cnt_ms10000,
+           midchg_ms1000, midchg_ms10000, rv_ms1000, rv_ms10000, rv_ms60000]
+    event: [ofi_l1_ev10, ofi_l1_ev50, ofi_l1_ev200,
+            mlofi_l2_ev50, mlofi_l3_ev50, mlofi_l4_ev50, mlofi_l5_ev50, mlofi_l6_ev50,
+            mlofi_l7_ev50, mlofi_l8_ev50, mlofi_l9_ev50, mlofi_l10_ev50,
+            integrated_ofi_ev50, qi_l1, qi_l5, microprice_adj_ticks, wmid_adj_ticks,
+            spread_ticks, tsi_vol_tr50, tsi_cnt_tr50, tsi_vol_tr200, tsi_cnt_tr200,
+            midchg_ms1000, midchg_ms10000, rv_ms1000, rv_ms10000, rv_ms60000]
   ridge: {alphas: [0.1, 1, 10, 100, 1000], standardize: true}
   lgbm:
     objective: [regression, huber]

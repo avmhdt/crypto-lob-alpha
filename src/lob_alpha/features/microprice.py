@@ -35,11 +35,15 @@ class MicropriceTable:
     counts: npt.NDArray[np.int64] = field(default_factory=lambda: np.zeros(0, np.int64))
 
     def to_rows(self) -> list[list[float]]:
-        """[[spread, bucket_center, g], ...] for feature_spec.json."""
+        """[[spread_ticks, imbalance_lower_edge, g], ...] for feature_spec.json.
+
+        Bucket b covers b / n_imb <= I < (b + 1) / n_imb (the last bucket includes I = 1),
+        so a consumer takes the last row of the spread whose edge is <= I.
+        """
         rows = []
         for s in range(self.max_spread):
             for b in range(self.n_imb):
-                rows.append([float(s + 1), (b + 0.5) / self.n_imb, float(self.g[s, b])])
+                rows.append([float(s + 1), b / self.n_imb, float(self.g[s, b])])
         return rows
 
 
@@ -94,9 +98,15 @@ def fit_microprice_arrays(
     return MicropriceTable(n_imb, max_spread, g.reshape(max_spread, n_imb), counts.astype(np.int64))
 
 
-def lookup(table: MicropriceTable, imb: F64, spread: F64) -> F64:
-    """g(I, S) per row; NaN outside 1..max_spread or when inputs are missing."""
+def lookup(table: MicropriceTable, imb: F64, spread: F64, *, clamp: bool = False) -> F64:
+    """g(I, S) per row; NaN when inputs are missing.
+
+    Without `clamp`, NaN outside spreads 1..max_spread. With `clamp`, a spread below 1 uses
+    the 1-tick row and a spread above max_spread the max_spread row (the model feature).
+    """
     out = np.full(len(imb), np.nan)
+    if clamp:
+        spread = np.clip(np.floor(spread + 1e-9), 1, table.max_spread)
     ok = ~(np.isnan(imb) | np.isnan(spread)) & (spread >= 1) & (spread <= table.max_spread)
     s = spread[ok].astype(np.int64) - 1
     b = _bucket(imb[ok], table.n_imb)

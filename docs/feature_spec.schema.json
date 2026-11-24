@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/avmhdt/crypto-lob-alpha/docs/feature_spec.schema.json",
+  "title": "Signal model artifact feature_spec.json, contract v1.0.0",
+  "type": "object",
+  "required": [
+    "spec_version", "model_name", "model_version", "venue", "symbols", "tick_size",
+    "lot_size", "book_depth", "timestamp", "clock", "sample_grid_ms", "target", "features",
+    "compatibility"
+  ],
+  "properties": {
+    "spec_version": {"type": "string", "pattern": "^1\\.[0-9]+\\.[0-9]+$"},
+    "model_name": {"type": "string", "pattern": "^lob-[a-z0-9-]+-[A-Za-z0-9]+-dmid_ticks_(time|event)_[0-9]+(_lat[0-9]+)?$"},
+    "model_version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$"
+    },
+    "venue": {"type": "string"},
+    "symbols": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "tick_size": {"type": "number", "exclusiveMinimum": 0},
+    "lot_size": {"type": "number", "exclusiveMinimum": 0},
+    "book_depth": {"type": "integer", "minimum": 1},
+    "timestamp": {"enum": ["ts_recv", "ts_exchange"]},
+    "clock": {"enum": ["time", "event"]},
+    "sample_grid_ms": {"type": ["integer", "null"], "minimum": 1},
+    "target": {
+      "type": "object",
+      "required": ["name", "unit", "horizon", "latency_ms"],
+      "properties": {
+        "name": {"type": "string"},
+        "unit": {"const": "ticks"},
+        "horizon": {
+          "type": "object",
+          "required": ["kind", "value", "unit"],
+          "properties": {
+            "kind": {"enum": ["clock", "event"]},
+            "value": {"type": "integer", "minimum": 1},
+            "unit": {"enum": ["ms", "events"]}
+          },
+          "additionalProperties": false
+        },
+        "latency_ms": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "features": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "name", "kind", "dtype", "levels", "window", "window_unit", "params",
+          "definition", "normalization"
+        ],
+        "properties": {
+          "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+          "kind": {
+            "enum": [
+              "ofi", "mlofi", "integrated_ofi", "queue_imbalance", "microprice",
+              "weighted_mid", "spread", "trade_sign_imbalance", "mid_changes", "realized_vol"
+            ]
+          },
+          "dtype": {"const": "float64"},
+          "levels": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+          "window": {"type": ["integer", "null"], "minimum": 1},
+          "window_unit": {"enum": ["ms", "events", "trades", null]},
+          "params": {"type": "object"},
+          "definition": {"type": "string", "minLength": 10},
+          "normalization": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": ["method"],
+                "properties": {"method": {"const": "none"}},
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": ["method", "mean", "std", "clip"],
+                "properties": {
+                  "method": {"const": "zscore_clip"},
+                  "mean": {"type": "number"},
+                  "std": {"type": "number", "exclusiveMinimum": 0},
+                  "clip": {"type": "number", "exclusiveMinimum": 0}
+                },
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {"properties": {"kind": {"enum": ["ofi", "mlofi"]}}},
+            "then": {"properties": {"params": {"required": ["depth_norm"]}}}
+          },
+          {
+            "if": {"properties": {"kind": {"const": "integrated_ofi"}}},
+            "then": {"properties": {"params": {"required": ["depth_norm", "weights"]}}}
+          },
+          {
+            "if": {"properties": {"kind": {"const": "microprice"}}},
+            "then": {"properties": {"params": {"required": ["imbalance_buckets", "max_spread_ticks", "table"]}}}
+          },
+          {
+            "if": {"properties": {"kind": {"const": "trade_sign_imbalance"}}},
+            "then": {"properties": {"params": {"required": ["weight"]}}}
+          }
+        ]
+      }
+    },
+    "compatibility": {"type": "string"}
+  },
+  "additionalProperties": false
+}

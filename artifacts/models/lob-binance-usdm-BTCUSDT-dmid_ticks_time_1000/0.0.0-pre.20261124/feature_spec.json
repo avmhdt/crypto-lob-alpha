@@ -1,0 +1,776 @@
+{
+  "spec_version": "1.0.0",
+  "model_name": "lob-binance-usdm-BTCUSDT-dmid_ticks_time_1000",
+  "model_version": "0.0.0-pre.20261124",
+  "venue": "binance-usdm",
+  "symbols": [
+    "BTCUSDT"
+  ],
+  "tick_size": 0.1,
+  "lot_size": 0.001,
+  "book_depth": 10,
+  "timestamp": "ts_recv",
+  "clock": "time",
+  "sample_grid_ms": 100,
+  "target": {
+    "name": "dmid_ticks_time_1000",
+    "unit": "ticks",
+    "horizon": {
+      "kind": "clock",
+      "value": 1000,
+      "unit": "ms"
+    },
+    "latency_ms": 0
+  },
+  "features": [
+    {
+      "name": "ofi_l1_ms100",
+      "kind": "ofi",
+      "dtype": "float64",
+      "levels": [
+        1
+      ],
+      "window": 100,
+      "window_unit": "ms",
+      "params": {
+        "depth_norm": 6.356328339773078
+      },
+      "definition": "sum of Cont-Kukanov-Stoikov e_n at level 1 between consecutive book batches, over the time window (t - 100 ms, t], divided by params.depth_norm (base units / base units)",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.0010067807643776394,
+        "std": 0.7208868086476231,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "ofi_l1_ms1000",
+      "kind": "ofi",
+      "dtype": "float64",
+      "levels": [
+        1
+      ],
+      "window": 1000,
+      "window_unit": "ms",
+      "params": {
+        "depth_norm": 6.356328339773078
+      },
+      "definition": "sum of Cont-Kukanov-Stoikov e_n at level 1 between consecutive book batches, over the time window (t - 1000 ms, t], divided by params.depth_norm (base units / base units)",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.010033487023328985,
+        "std": 2.8649208883031876,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "ofi_l1_ms10000",
+      "kind": "ofi",
+      "dtype": "float64",
+      "levels": [
+        1
+      ],
+      "window": 10000,
+      "window_unit": "ms",
+      "params": {
+        "depth_norm": 6.356328339773078
+      },
+      "definition": "sum of Cont-Kukanov-Stoikov e_n at level 1 between consecutive book batches, over the time window (t - 10000 ms, t], divided by params.depth_norm (base units / base units)",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.10027720189993952,
+        "std": 10.982389012929593,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "mlofi_l2_ms1000",
+      "kind": "mlofi",
+      "dtype": "float64",
+      "levels": [
+        2
+      ],
+      "window": 1000,
+      "window_unit": "ms",
+      "params": {
+        "depth_norm": 6.356328339773078
+      },
+      "definition": "sum of e_n computed with level-2 prices and sizes over the time window (t - 1000 ms, t], divided by params.depth_norm",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.0013242478602340819,
+        "std": 0.3960133874804769,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "mlofi_l3_ms1000",
+      "kind": "mlofi",
+      "dtype": "float64",
+      "levels": [
+        3
+      ],
+      "window": 1000,
+      "window_unit": "ms",
+      "params": {
+        "depth_norm": 6.356328339773078
+      },
+      "definition": "sum of e_n computed with level-3 prices and sizes over the time window (t - 1000 ms, t], divided by params.depth_norm",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.0016790430045878304,
+        "std": 0.3129126597892345,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "mlofi_l4_ms1000",
+      "kind": "mlofi",
+      "dtype": "float64",
+      "levels": [
+        4
+      ],
+      "window": 1000,
+      "window_unit": "ms",
+      "params": {
+        "depth_norm": 6.356328339773078
+      },
+      "definition": "sum of e_n computed with level-4 prices and sizes over the time window (t - 1000 ms, t], divided by params.depth_norm",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.0022615038722805735,
+        "std": 0.3142780764574166,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "mlofi_l5_ms1000",
+      "kind": "mlofi",
+      "dtype": "float64",
+      "levels": [
+        5
+      ],
+      "window": 1000,
+      "window_unit": "ms",
+      "params": {
+        "depth_norm": 6.356328339773078
+      },
+      "definition": "sum of e_n computed with level-5 prices and sizes over the time window (t - 1000 ms, t], divided by params.depth_norm",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.00253828912363715,
+        "std": 0.3765699403109911,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "mlofi_l6_ms1000",
+      "kind": "mlofi",
+      "dtype": "float64",
+      "levels": [
+        6
+      ],
+      "window": 1000,
+      "window_unit": "ms",
+      "params": {
+        "depth_norm": 6.356328339773078
+      },
+      "definition": "sum of e_n computed with level-6 prices and sizes over the time window (t - 1000 ms, t], divided by params.depth_norm",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.0018142112942963551,
+        "std": 0.34275958357616954,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "mlofi_l7_ms1000",
+      "kind": "mlofi",
+      "dtype": "float64",
+      "levels": [
+        7
+      ],
+      "window": 1000,
+      "window_unit": "ms",
+      "params": {
+        "depth_norm": 6.356328339773078
+      },
+      "definition": "sum of e_n computed with level-7 prices and sizes over the time window (t - 1000 ms, t], divided by params.depth_norm",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.0019100878368298318,
+        "std": 0.3401822251271078,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "mlofi_l8_ms1000",
+      "kind": "mlofi",
+      "dtype": "float64",
+      "levels": [
+        8
+      ],
+      "window": 1000,
+      "window_unit": "ms",
+      "params": {
+        "depth_norm": 6.356328339773078
+      },
+      "definition": "sum of e_n computed with level-8 prices and sizes over the time window (t - 1000 ms, t], divided by params.depth_norm",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.001223854912727012,
+        "std": 0.3596755959165221,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "mlofi_l9_ms1000",
+      "kind": "mlofi",
+      "dtype": "float64",
+      "levels": [
+        9
+      ],
+      "window": 1000,
+      "window_unit": "ms",
+      "params": {
+        "depth_norm": 6.356328339773078
+      },
+      "definition": "sum of e_n computed with level-9 prices and sizes over the time window (t - 1000 ms, t], divided by params.depth_norm",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.001534044166004889,
+        "std": 0.28598384677021793,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "mlofi_l10_ms1000",
+      "kind": "mlofi",
+      "dtype": "float64",
+      "levels": [
+        10
+      ],
+      "window": 1000,
+      "window_unit": "ms",
+      "params": {
+        "depth_norm": 6.356328339773078
+      },
+      "definition": "sum of e_n computed with level-10 prices and sizes over the time window (t - 1000 ms, t], divided by params.depth_norm",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.0009904577649830365,
+        "std": 0.31773651591713375,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "integrated_ofi_ms1000",
+      "kind": "integrated_ofi",
+      "dtype": "float64",
+      "levels": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "window": 1000,
+      "window_unit": "ms",
+      "params": {
+        "depth_norm": 6.356328339773078,
+        "weights": [
+          0.7166121875031247,
+          0.042064286173031894,
+          0.029773576565530174,
+          0.031185132010311024,
+          0.033293282721912204,
+          0.03186414626775573,
+          0.030580778194592942,
+          0.029094283288586206,
+          0.027787212689067736,
+          0.02774511458608732
+        ]
+      },
+      "definition": "sum over l = 1..10 of params.weights[l-1] x (sum of level-l e_n over the time window (t - 1000 ms, t]), divided by params.depth_norm",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.007672781638451781,
+        "std": 2.088904537393081,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "qi_l1",
+      "kind": "queue_imbalance",
+      "dtype": "float64",
+      "levels": [
+        1
+      ],
+      "window": null,
+      "window_unit": null,
+      "params": {},
+      "definition": "(sum bid_qty_1..1 - sum ask_qty_1..1) / (sum bid_qty_1..1 + sum ask_qty_1..1)",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": -0.005064742887573034,
+        "std": 0.5422111339095087,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "qi_l5",
+      "kind": "queue_imbalance",
+      "dtype": "float64",
+      "levels": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "window": null,
+      "window_unit": null,
+      "params": {},
+      "definition": "(sum bid_qty_1..5 - sum ask_qty_1..5) / (sum bid_qty_1..5 + sum ask_qty_1..5)",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": -0.005206708315590796,
+        "std": 0.542006970783558,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "microprice_adj_ticks",
+      "kind": "microprice",
+      "dtype": "float64",
+      "levels": [
+        1
+      ],
+      "window": null,
+      "window_unit": null,
+      "params": {
+        "imbalance_buckets": 10,
+        "max_spread_ticks": 4,
+        "table": [
+          [
+            1.0,
+            0.0,
+            -0.1020839480358863
+          ],
+          [
+            1.0,
+            0.1,
+            -0.07314645514361143
+          ],
+          [
+            1.0,
+            0.2,
+            -0.05343621212976765
+          ],
+          [
+            1.0,
+            0.3,
+            -0.03212984693072467
+          ],
+          [
+            1.0,
+            0.4,
+            -0.010680560615424009
+          ],
+          [
+            1.0,
+            0.5,
+            0.010928528548734358
+          ],
+          [
+            1.0,
+            0.6,
+            0.03238515051662212
+          ],
+          [
+            1.0,
+            0.7,
+            0.053690156269939185
+          ],
+          [
+            1.0,
+            0.8,
+            0.07339961640172969
+          ],
+          [
+            1.0,
+            0.9,
+            0.1023433741534585
+          ],
+          [
+            2.0,
+            0.0,
+            -0.34096346133511596
+          ],
+          [
+            2.0,
+            0.1,
+            -0.08315938529457358
+          ],
+          [
+            2.0,
+            0.2,
+            -0.11112081609936292
+          ],
+          [
+            2.0,
+            0.3,
+            0.0655835362373547
+          ],
+          [
+            2.0,
+            0.4,
+            -0.03777004595695896
+          ],
+          [
+            2.0,
+            0.5,
+            0.03801517566195483
+          ],
+          [
+            2.0,
+            0.6,
+            -0.06533872297703786
+          ],
+          [
+            2.0,
+            0.7,
+            0.11136663829270815
+          ],
+          [
+            2.0,
+            0.8,
+            0.08340403067329089
+          ],
+          [
+            2.0,
+            0.9,
+            0.3412094038281626
+          ],
+          [
+            3.0,
+            0.0,
+            -0.8539891071295381
+          ],
+          [
+            3.0,
+            0.1,
+            -0.7113662681894458
+          ],
+          [
+            3.0,
+            0.2,
+            -0.11198623703240025
+          ],
+          [
+            3.0,
+            0.3,
+            -1.0106847810803157
+          ],
+          [
+            3.0,
+            0.4,
+            0.7055682848457671
+          ],
+          [
+            3.0,
+            0.5,
+            -0.7053217678731813
+          ],
+          [
+            3.0,
+            0.6,
+            1.0109243080838421
+          ],
+          [
+            3.0,
+            0.7,
+            0.11223322960433535
+          ],
+          [
+            3.0,
+            0.8,
+            0.7116145050227843
+          ],
+          [
+            3.0,
+            0.9,
+            0.8542354029654309
+          ],
+          [
+            4.0,
+            0.0,
+            -0.48907569191615885
+          ],
+          [
+            4.0,
+            0.1,
+            0.0
+          ],
+          [
+            4.0,
+            0.2,
+            0.014594239040030757
+          ],
+          [
+            4.0,
+            0.3,
+            0.0
+          ],
+          [
+            4.0,
+            0.4,
+            0.4678659326043824
+          ],
+          [
+            4.0,
+            0.5,
+            -0.46761906994827074
+          ],
+          [
+            4.0,
+            0.6,
+            0.0
+          ],
+          [
+            4.0,
+            0.7,
+            -0.014346386281971086
+          ],
+          [
+            4.0,
+            0.8,
+            0.0
+          ],
+          [
+            4.0,
+            0.9,
+            0.4893152189196833
+          ]
+        ]
+      },
+      "definition": "Stoikov (2018) adjustment g(I, S) in ticks from params.table rows [spread_ticks, imbalance_lower_edge, g], I = bid_qty_1 / (bid_qty_1 + ask_qty_1), S = ask_1 - bid_1 in ticks clamped to 1..params.max_spread_ticks; the last row of spread S whose edge <= I",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": -0.0004156686944967396,
+        "std": 0.061814418516845986,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "wmid_adj_ticks",
+      "kind": "weighted_mid",
+      "dtype": "float64",
+      "levels": [
+        1
+      ],
+      "window": null,
+      "window_unit": null,
+      "params": {},
+      "definition": "(bid_1 ask_qty_1 + ask_1 bid_qty_1) / (bid_qty_1 + ask_qty_1) - (bid_1 + ask_1) / 2, ticks",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": -0.0020958405320190138,
+        "std": 0.8245099334129989,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "spread_ticks",
+      "kind": "spread",
+      "dtype": "float64",
+      "levels": [
+        1
+      ],
+      "window": null,
+      "window_unit": null,
+      "params": {},
+      "definition": "ask_1 - bid_1, ticks",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 1.0216259639358911,
+        "std": 2.27145179127898,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "tsi_vol_ms1000",
+      "kind": "trade_sign_imbalance",
+      "dtype": "float64",
+      "levels": [],
+      "window": 1000,
+      "window_unit": "ms",
+      "params": {
+        "weight": "volume"
+      },
+      "definition": "sum(side x w) / sum(w) over the time window (t - 1000 ms, t], side +1 buyer-initiated, -1 seller-initiated, w = trade size",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.017548821585667295,
+        "std": 0.802040227680544,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "tsi_cnt_ms1000",
+      "kind": "trade_sign_imbalance",
+      "dtype": "float64",
+      "levels": [],
+      "window": 1000,
+      "window_unit": "ms",
+      "params": {
+        "weight": "count"
+      },
+      "definition": "sum(side x w) / sum(w) over the time window (t - 1000 ms, t], side +1 buyer-initiated, -1 seller-initiated, w = 1",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.01910973850663197,
+        "std": 0.6900200681417925,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "tsi_vol_ms10000",
+      "kind": "trade_sign_imbalance",
+      "dtype": "float64",
+      "levels": [],
+      "window": 10000,
+      "window_unit": "ms",
+      "params": {
+        "weight": "volume"
+      },
+      "definition": "sum(side x w) / sum(w) over the time window (t - 10000 ms, t], side +1 buyer-initiated, -1 seller-initiated, w = trade size",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 8.652726640936062e-05,
+        "std": 0.5894761847106039,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "tsi_cnt_ms10000",
+      "kind": "trade_sign_imbalance",
+      "dtype": "float64",
+      "levels": [],
+      "window": 10000,
+      "window_unit": "ms",
+      "params": {
+        "weight": "count"
+      },
+      "definition": "sum(side x w) / sum(w) over the time window (t - 10000 ms, t], side +1 buyer-initiated, -1 seller-initiated, w = 1",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.00926084089259669,
+        "std": 0.4961852628594268,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "midchg_ms1000",
+      "kind": "mid_changes",
+      "dtype": "float64",
+      "levels": [
+        1
+      ],
+      "window": 1000,
+      "window_unit": "ms",
+      "params": {},
+      "definition": "number of book batches over the time window (t - 1000 ms, t] whose mid differs from the previous batch's mid",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 0.6817716279317426,
+        "std": 1.2655318356100616,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "midchg_ms10000",
+      "kind": "mid_changes",
+      "dtype": "float64",
+      "levels": [
+        1
+      ],
+      "window": 10000,
+      "window_unit": "ms",
+      "params": {},
+      "definition": "number of book batches over the time window (t - 10000 ms, t] whose mid differs from the previous batch's mid",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 6.815482702979259,
+        "std": 8.456579593771277,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "rv_ms1000",
+      "kind": "realized_vol",
+      "dtype": "float64",
+      "levels": [
+        1
+      ],
+      "window": 1000,
+      "window_unit": "ms",
+      "params": {
+        "sample_ms": 100
+      },
+      "definition": "sqrt of the sum of squared changes of the mid (ticks) between consecutive 100 ms grid points over the time window (t - 1000 ms, t]",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 20.9742016766615,
+        "std": 43.52186938597509,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "rv_ms10000",
+      "kind": "realized_vol",
+      "dtype": "float64",
+      "levels": [
+        1
+      ],
+      "window": 10000,
+      "window_unit": "ms",
+      "params": {
+        "sample_ms": 100
+      },
+      "definition": "sqrt of the sum of squared changes of the mid (ticks) between consecutive 100 ms grid points over the time window (t - 10000 ms, t]",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 104.83740130188652,
+        "std": 111.01438440649387,
+        "clip": 5.0
+      }
+    },
+    {
+      "name": "rv_ms60000",
+      "kind": "realized_vol",
+      "dtype": "float64",
+      "levels": [
+        1
+      ],
+      "window": 60000,
+      "window_unit": "ms",
+      "params": {
+        "sample_ms": 100
+      },
+      "definition": "sqrt of the sum of squared changes of the mid (ticks) between consecutive 100 ms grid points over the time window (t - 60000 ms, t]",
+      "normalization": {
+        "method": "zscore_clip",
+        "mean": 285.4032708166891,
+        "std": 241.10598956705422,
+        "clip": 5.0
+      }
+    }
+  ],
+  "compatibility": "consumers MUST reject a different spec_version major; MUST apply normalization before predict"
+}
