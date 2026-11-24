@@ -538,6 +538,135 @@ def ofi_replicate(
         raise typer.Exit(code=1)
 
 
+def _complete_days(
+    venue: str, symbol: str, start: str | None, end: str | None, recorder_config: Path
+) -> list[date]:
+    from lob_alpha.validate.dq import complete_days  # noqa: PLC0415
+
+    settings = Settings()
+    recorder = load_recorder_config(recorder_config, settings)
+    first = date.fromisoformat(start) if start else date(2026, 11, 1)
+    last = date.fromisoformat(end) if end else date.today()
+    full = complete_days(settings.data_dir, _streams(recorder), first, last)
+    rows = full.filter(full["complete"]).iter_rows(named=True)
+    return sorted(
+        date.fromisoformat(str(r["date"]))
+        for r in rows
+        if (r["venue"], r["symbol"]) == (venue, symbol)
+    )
+
+
+def _model_grid(base: dict[str, Any], sets: list[str]) -> list[dict[str, Any]]:
+    """Expand list-valued options into one config per combination; --set fixes a key."""
+    import itertools  # noqa: PLC0415
+
+    import yaml  # noqa: PLC0415
+
+    fixed = dict(base)
+    for kv in sets:
+        key, _, value = kv.partition("=")
+        fixed[key] = yaml.safe_load(value)
+    keys = [k for k, v in fixed.items() if isinstance(v, list) and k != "alphas"]
+    combos = itertools.product(*[fixed[k] for k in keys]) if keys else [()]
+    return [fixed | dict(zip(keys, c, strict=True)) for c in combos]
+
+
+@app.command("train")
+def train(
+    model: Annotated[str, typer.Option("--model", help="ridge or lgbm.")],
+    venue: Annotated[str, typer.Option("--venue")],
+    symbol: Annotated[str, typer.Option("--symbol")],
+    target: Annotated[str, typer.Option("--target")] = "dmid_ticks_time_1000",
+    set_: Annotated[list[str] | None, typer.Option("--set", help="key=value.")] = None,
+    folds: Annotated[str | None, typer.Option(help="Fold indices, e.g. 9,10.")] = None,
+    start: Annotated[str | None, typer.Option()] = None,
+    end: Annotated[str | None, typer.Option()] = None,
+    permute: Annotated[bool, typer.Option(help="AC-W-05 permutation run.")] = False,
+    notes: Annotated[str, typer.Option()] = "",
+    config: ResearchConfig = DEFAULT_RESEARCH,
+    recorder_config: Annotated[Path, typer.Option("--recorder-config")] = DEFAULT_CONFIG,
+    results: Annotated[Path, typer.Option("--results")] = Path("results"),
+) -> None:
+    """Walk-forward fit and OOS predictions; one run per grid point; prints each run_id."""
+    from lob_alpha.models.train import Runner, RunSpec, Target  # noqa: PLC0415
+
+    cfg = _research(config)
+    tgt = Target.parse(target)
+    mcfg = cfg.get("models", {})
+    features = list(mcfg.get("feature_sets", {})[tgt.clock])
+    days = _complete_days(venue, symbol, start, end, recorder_config)
+    inst = load_instruments().get(venue, symbol, days[-1] if days else None)
+    wf = cfg.get("walk_forward", {})
+    grid = _model_grid(dict(mcfg.get(model, {})), set_ or [])
+    settings = Settings()
+    for model_cfg in grid:
+        spec = RunSpec(
+            venue=venue,
+            symbol=symbol,
+            target=target,
+            model=model,
+            model_cfg=model_cfg,
+            features=features,
+            days=days,
+            tick_size=inst.tick_size,
+            taker_fee_bps=inst.taker_fee_bps,
+            train_days=int(wf.get("train_days", 5)),
+            val_days=int(wf.get("val_days", 1)),
+            test_days=int(wf.get("test_days", 1)),
+            step_days=int(wf.get("step_days", 1)),
+            purge_s=float(wf.get("purge_s", 31)),
+            folds=[int(x) for x in folds.split(",")] if folds else None,
+            permute=permute,
+            notes=notes,
+        )
+        res = Runner(spec, settings.data_dir, results).run()
+        p = res.pooled
+        typer.echo(
+            f"{res.run_id} {model} {venue} {symbol} {target} {len(res.folds)} folds: "
+            f"OOS R2 {p['oos_r2']:.4f}, IC {p['ic_spearman']:.4f}, "
+            f"hit {p['hit_rate_nonzero']:.3f}, trades {p['n_trades']}"
+        )
+
+
+@app.command("export-model")
+def export_model_cmd(
+    run_id: Annotated[str, typer.Option("--run-id")],
+    version: Annotated[str, typer.Option("--version", help="semver, e.g. 1.0.0.")],
+    fold: Annotated[int | None, typer.Option(help="Fold to export; default the last.")] = None,
+    provisional: Annotated[bool, typer.Option(help="Mark the artifact provisional.")] = False,
+    out: Annotated[Path, typer.Option("--out")] = Path("artifacts/models"),
+    results: Annotated[Path, typer.Option("--results")] = Path("results"),
+) -> None:
+    """Write the signal model artifact (contract v1.0.0) from one fold of a LightGBM run."""
+    from lob_alpha import export  # noqa: PLC0415
+
+    cfg = json.loads((results / "runs" / run_id / "config.json").read_text(encoding="utf-8"))
+    inst = load_instruments().get(cfg["venue"], cfg["symbol"])
+    extra: dict[str, Any] = {}
+    if provisional:
+        extra = {
+            "provisional": True,
+            "status": (
+                "provisional pre-release for integration only; not for published results. "
+                "The final artifact follows the end of the capture window."
+            ),
+        }
+    res = export.export_model(
+        run_id=run_id,
+        results=results,
+        data_root=Settings().data_dir,
+        out_root=out,
+        version=version,
+        tick=inst.tick_size,
+        lot=inst.lot_size,
+        fold=fold,
+        extra_metadata=extra,
+    )
+    typer.echo(
+        f"{res.folder}: {res.n_parity} parity rows, reload max |diff| {res.max_abs_diff:.2e}"
+    )
+
+
 @app.command("verify")
 def verify(
     ac_id: Annotated[str, typer.Argument(help="Acceptance criterion, e.g. AC-W-03.")],
@@ -554,6 +683,19 @@ def verify(
         from lob_alpha.research import ofi  # noqa: PLC0415
 
         ok, text = ofi.verdict(ofi.read_table(Path("reports/tables/ofi_replication.csv")))
+    elif ac_id == "AC-W-10":
+        from lob_alpha import explog  # noqa: PLC0415
+
+        problems = explog.check_logs(Path("results"))
+        ok, text = not problems, "; ".join(problems) or "trial and experiment logs consistent"
+    elif ac_id == "AC-W-11":
+        from lob_alpha import export  # noqa: PLC0415
+
+        ok, text = export.verify_artifacts(Path("artifacts/models"))
+    elif ac_id == "AC-W-05":
+        from lob_alpha import explog  # noqa: PLC0415
+
+        ok, text = explog.verdict_permutation(Path("results"))
     else:
         typer.echo(f"{ac_id}: no automated check yet")
         raise typer.Exit(code=2)

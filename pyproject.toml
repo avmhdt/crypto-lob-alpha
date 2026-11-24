@@ -9,6 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
     "duckdb>=1.1",
     "httpx[http2]>=0.27",
+    "lightgbm>=4.5",
     "matplotlib>=3.9",
     "numba>=0.61",
     "numpy>=2.1",
@@ -18,6 +19,8 @@ dependencies = [
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
     "pyyaml>=6.0",
+    "scikit-learn>=1.5",
+    "shap>=0.46",
     "sortedcontainers>=2.4",
     "structlog>=24.4",
     "typer>=0.12",
@@ -32,6 +35,7 @@ lob = "lob_alpha.cli:app"
 [dependency-groups]
 dev = [
     "hypothesis>=6.100",
+    "jsonschema>=4.23",
     "mypy>=1.11",
     "pre-commit>=3.8",
     "pytest>=8.3",
@@ -74,7 +78,7 @@ strict = true
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["pyarrow", "pyarrow.*", "sortedcontainers"]
+module = ["pyarrow", "pyarrow.*", "sortedcontainers", "lightgbm", "lightgbm.*", "sklearn", "sklearn.*", "shap", "shap.*", "jsonschema"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
