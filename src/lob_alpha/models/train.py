@@ -283,7 +283,8 @@ class Runner:
             self._run(result, out, heavy, row)
         except Exception as exc:
             row.status = "failed"
-            row.notes = (s.notes + " | " if s.notes else "") + f"failed: {exc!r}"[:400]
+            msg = f"failed: {exc!r}".replace(str(self.data_root), "<DATA_ROOT>")[:400]
+            row.notes = (s.notes + " | " if s.notes else "") + msg
             (out / "error.txt").write_text(traceback.format_exc(), encoding="utf-8")
             explog.append_trial(row, self.results / explog.TRIAL_LOG.name)
             raise

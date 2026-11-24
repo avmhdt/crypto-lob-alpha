@@ -51,3 +51,6 @@ coverage.xml
 htmlcov/
 .hypothesis/
 .benchmarks/
+
+# Run tracebacks (local paths); the trial log keeps the failure note
+results/runs/*/error.txt

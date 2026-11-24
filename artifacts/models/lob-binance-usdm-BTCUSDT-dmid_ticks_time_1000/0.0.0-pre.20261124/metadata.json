@@ -1,0 +1,37 @@
+{
+  "git_sha": "971bb0b24073b0a80b0490a858f670e193b31e78",
+  "created_utc": "2026-11-24T23:37:41Z",
+  "lightgbm_version": "4.7.0",
+  "model_sha256": "498eb46f84ad18965e4b5c00ae8b5f92fc541501d4859cfb183433c9e172676d",
+  "files_sha256": {
+    "feature_spec.json": "4d262681ac98f2ecda9545dcb890551841a954e7c312dceb1fc34857d767d77c",
+    "parity_sample.csv": "6f69befcc22e77fc5df252727cb0cb09e4994533116a3e1ab3e2e6fc3e9cb79d"
+  },
+  "fold": 1,
+  "train_start": "2026-11-05",
+  "train_end": "2026-11-16",
+  "valid_start": "2026-11-19",
+  "valid_end": "2026-11-19",
+  "train_days": [
+    "2026-11-05",
+    "2026-11-06",
+    "2026-11-08",
+    "2026-11-09",
+    "2026-11-16"
+  ],
+  "validation_days": [
+    "2026-11-19"
+  ],
+  "target_unit": "ticks",
+  "metrics": {
+    "oos_r2": 0.05308716738713071,
+    "ic_spearman": 0.3486232362622292,
+    "n_test_days": 1
+  },
+  "test_days": [
+    "2026-11-23"
+  ],
+  "run_id": "99585136-233f-4584-b6aa-821c4ceb1cb0",
+  "provisional": true,
+  "status": "provisional pre-release for integration only; not for published results. The final artifact follows the end of the capture window."
+}
