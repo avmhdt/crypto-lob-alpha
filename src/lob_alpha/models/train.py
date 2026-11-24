@@ -267,6 +267,7 @@ class Runner:
             horizon=s.tgt.horizon,
             latency_ms=s.tgt.latency_ms,
             notes=s.notes,
+            git_sha=explog.git_sha(self.results / explog.TRIAL_LOG.name),
         )
         if run_id is not None:
             row.run_id = run_id

@@ -123,6 +123,7 @@ class TrialRow:
     notes: str = ""
     metrics: dict[str, Any] = field(default_factory=dict)  # experiment-log columns
     run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    git_sha: str | None = None  # code version at the run's start; None = read at append
 
 
 def sharpe(returns: list[float], periods: int) -> float:
@@ -158,7 +159,7 @@ def append_trial(row: TrialRow, path: Path = TRIAL_LOG) -> str:
     out: dict[str, str] = {
         "run_id": row.run_id,
         "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "git_sha": git_sha(path),
+        "git_sha": row.git_sha or git_sha(path),
         "strategy_family": row.family,
         "params_json": canonical_json(row.params),
         "n_obs": "0",
