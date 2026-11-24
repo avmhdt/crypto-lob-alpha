@@ -114,3 +114,43 @@ def test_ridge_run_cannot_be_exported(artifact: tuple[Path, Path, str]) -> None:
             tick=0.1,
             lot=0.001,
         )
+
+
+def test_importance_on_lgbm_run(artifact: tuple[Path, Path, str], tmp_path: Path) -> None:
+    from lob_alpha.research import importance
+
+    root, _, run_id = artifact
+    rows = importance.run_importance(root, root / "results", run_id)
+    assert sorted(r.shap_rank for r in rows) == list(range(1, len(FEATURES) + 1))
+    assert abs(sum(r.gain_share for r in rows) - 1.0) < 1e-9
+    top = rows[0].feature
+    assert top in ("ofi_l1_ms1000", "integrated_ofi_ms1000", "qi_l1", "ofi_l1_ms100")
+    cfg = {"venue": VENUE, "symbol": SYMBOL, "target": TARGET}
+    importance.write_table(tmp_path / "importance.csv", cfg, run_id, rows)
+    importance.figure(tmp_path / "shap.png", "test", rows)
+    assert (tmp_path / "shap.png").stat().st_size > 1000
+
+
+def test_stability_and_decay_on_run(artifact: tuple[Path, Path, str], tmp_path: Path) -> None:
+    import csv
+
+    from lob_alpha.research import decay, stability
+
+    root, _, run_id = artifact
+    cfg = json.loads((root / "results" / "runs" / run_id / "config.json").read_text())
+    rows = stability.run_days(root, cfg, run_id)
+    assert [r.day for r in rows] == ["2026-04-12"]
+    r = rows[0]
+    assert r.lo <= r.oos_r2 <= r.hi and r.oos_r2 > 0.1
+    stability.write_table(tmp_path / "stability.csv", rows)
+    stability.write_table(tmp_path / "stability.csv", rows)  # replaces, never duplicates
+    with (tmp_path / "stability.csv").open(encoding="utf-8", newline="") as fh:
+        table = list(csv.DictReader(fh))
+    assert len(table) == 1
+    stability.forest(tmp_path / "forest.png", table)
+    stats = decay.run_day_stats(root, run_id)
+    assert decay.pooled_r2(stats) == pytest.approx(r.oos_r2)
+    meta = {"venue": VENUE, "symbol": SYMBOL, "clock": "time", "model": "lgbm", "run_id": run_id}
+    row = decay.curve_row(meta, 1000, 0, stats)
+    decay.write_rows(tmp_path / "decay.csv", [row], ("venue", "horizon", "latency_ms"))
+    assert (tmp_path / "decay.csv").read_text().count("\n") == 2

@@ -76,6 +76,32 @@ class RunSpec:
     exec_quantile: float = touch.DEFAULT_QUANTILE
     notes: str = ""
 
+    @classmethod
+    def from_params(cls, params: dict[str, Any], tick_size: float, notes: str = "") -> RunSpec:
+        """Rebuild a spec from a run's config.json (the trial row's params_json)."""
+        wf = params["walk_forward"]
+        return cls(
+            venue=params["venue"],
+            symbol=params["symbol"],
+            target=params["target"],
+            model=params["model"],
+            model_cfg=dict(params["model_cfg"]),
+            features=list(params["features"]),
+            days=[date.fromisoformat(d) for d in params["days"]],
+            tick_size=tick_size,
+            taker_fee_bps=float(params["exec"]["taker_fee_bps"]),
+            train_days=int(wf["train_days"]),
+            val_days=int(wf["val_days"]),
+            test_days=int(wf["test_days"]),
+            step_days=int(wf["step_days"]),
+            purge_s=float(wf["purge_s"]),
+            folds=wf["folds"],
+            permute=bool(params["permute"]),
+            seed=int(params["seed"]),
+            exec_quantile=float(params["exec"]["quantile"]),
+            notes=notes,
+        )
+
     @property
     def tgt(self) -> Target:
         return Target.parse(self.target)

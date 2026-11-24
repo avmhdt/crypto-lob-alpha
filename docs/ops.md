@@ -119,6 +119,28 @@ uv run lob verify AC-W-04
 
 `features build` writes `processed/features/.../clock={time,event}/part-HH.parquet` and the labels beside them under `processed/labels`. `lob labels build` is the same pass. `ofi replicate` runs on complete days only (DQ-10). It writes `reports/tables/ofi_replication.csv` and `reports/figures/ofi_scatter_*.png`, and exits 1 if AC-W-04 fails.
 
+## Models, decay and the artifact (M5)
+
+Same thread caps and priority. LightGBM uses `num_threads` from `config/research.yaml` (8).
+
+```bash
+nice -n 10 ionice -c3 uv run lob train --model lgbm --venue binance-usdm --symbol BTCUSDT --target dmid_ticks_time_1000
+nice -n 10 ionice -c3 uv run lob train --model ridge --venue binance-usdm --symbol BTCUSDT --permute
+uv run lob decay --run-id <run_id>
+uv run lob stability --run-id <run_id> [--run-id <run_id> ...]
+uv run lob importance --run-id <run_id>
+uv run lob export-model --run-id <run_id> --version 1.0.0
+uv run lob verify AC-W-05
+uv run lob verify AC-W-10
+uv run lob verify AC-W-11
+```
+
+- **`train`:** one run per grid point. A list-valued option in `models.<model>` (for example LightGBM's `objective` and `num_leaves`) expands into one run per combination, and `--set key=value` fixes a key.
+- **Days:** a run uses every complete day (DQ-10) that has features. Complete days that have no features yet are listed and left out.
+- **Logging:** each run appends one row to `results/trial_log.csv` and one to `results/experiment_log.csv`, including runs that fail.
+- **Outputs:** `results/runs/<run_id>/` holds `config.json`, `metrics.json` and `returns.parquet`. Predictions and per-fold models go to `<DATA_ROOT>/runs/<run_id>/`.
+- **`export-model`:** writes `artifacts/models/<model_name>/<version>/` from the run's last fold, or from `--fold`. Add `--provisional` for a pre-release such as `0.0.0-pre.<yyyymmdd>`. A version folder is never overwritten. The contract is in `docs/model_artifact.md`.
+
 ## Disk
 
 - Retention: canonical data, gaps, checkpoints and clock are kept. The raw archive is pruned after `LOB_RAW_ARCHIVE_DAYS`.

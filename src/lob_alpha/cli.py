@@ -594,11 +594,25 @@ def train(
     tgt = Target.parse(target)
     mcfg = cfg.get("models", {})
     features = list(mcfg.get("feature_sets", {})[tgt.clock])
-    days = _complete_days(venue, symbol, start, end, recorder_config)
+    from lob_alpha.validate.rebuild import partition  # noqa: PLC0415
+
+    settings = Settings()
+    complete = _complete_days(venue, symbol, start, end, recorder_config)
+
+    def built(d: date) -> bool:
+        base = settings.data_dir / "processed"
+        return all(
+            any((partition(base, ds, venue, symbol, d) / f"clock={tgt.clock}").glob("*.parquet"))
+            for ds in ("features", "labels")
+        )
+
+    days = [d for d in complete if built(d)]
+    missing = sorted(set(complete) - set(days))
+    if missing:
+        typer.echo(f"complete days without features yet, left out: {[str(d) for d in missing]}")
     inst = load_instruments().get(venue, symbol, days[-1] if days else None)
     wf = cfg.get("walk_forward", {})
     grid = _model_grid(dict(mcfg.get(model, {})), set_ or [])
-    settings = Settings()
     for model_cfg in grid:
         spec = RunSpec(
             venue=venue,
@@ -626,6 +640,117 @@ def train(
             f"OOS R2 {p['oos_r2']:.4f}, IC {p['ic_spearman']:.4f}, "
             f"hit {p['hit_rate_nonzero']:.3f}, trades {p['n_trades']}"
         )
+
+
+@app.command("decay")
+def decay_cmd(
+    run_id: Annotated[str, typer.Option("--run-id")],
+    horizons: Annotated[bool, typer.Option(help="Horizon curve (one run per horizon).")] = True,
+    latencies: Annotated[bool, typer.Option(help="Latency curve (clock runs).")] = True,
+    config: ResearchConfig = DEFAULT_RESEARCH,
+    results: Annotated[Path, typer.Option("--results")] = Path("results"),
+    tables: Annotated[Path, typer.Option("--tables")] = Path("reports/tables"),
+) -> None:
+    """Alpha decay vs horizon and added latency; half-life with CI (FR-21)."""
+    from lob_alpha import explog  # noqa: PLC0415
+    from lob_alpha.models.train import Runner, RunSpec, Target  # noqa: PLC0415
+    from lob_alpha.research import decay  # noqa: PLC0415
+
+    cfg = _research(config)
+    settings = Settings()
+    base = json.loads((results / "runs" / run_id / "config.json").read_text(encoding="utf-8"))
+    tgt = Target.parse(base["target"])
+    inst = load_instruments().get(base["venue"], base["symbol"])
+    meta: dict[str, str | int] = {
+        "venue": base["venue"],
+        "symbol": base["symbol"],
+        "clock": tgt.clock,
+        "model": base["model"],
+        "run_id": run_id,
+    }
+    rows: list[decay.CurveRow] = []
+    if horizons:
+        lab = cfg.get("labels", {})
+        hs = lab.get("horizons_ms" if tgt.clock == "time" else "horizons_events", [])
+        done = {
+            explog.canonical_json(json.loads(r["params_json"])): r["run_id"]
+            for r in explog.read_rows(results / explog.TRIAL_LOG.name)
+            if r["x_status"] == "ok"
+        }
+        for h in hs:
+            name = f"dmid_ticks_{tgt.clock}_{h}"
+            params = base | {"target": name}
+            rid = done.get(explog.canonical_json(params))
+            if rid is None:
+                spec = RunSpec.from_params(params, inst.tick_size, notes=f"decay of {run_id}")
+                rid = Runner(spec, settings.data_dir, results).run().run_id
+            stats = decay.run_day_stats(settings.data_dir, rid)
+            rows.append(decay.curve_row(meta | {"run_id": rid}, int(h), 0, stats))
+            typer.echo(f"horizon {h}: run {rid} OOS R2 {rows[-1].oos_r2:.4f}")
+    if latencies and tgt.clock == "time":
+        lat_rows, lat_stats = [], {}
+        for lat in cfg.get("labels", {}).get("latencies_ms", [0]):
+            stats = decay.latency_day_stats(
+                settings.data_dir, run_id, base["venue"], base["symbol"], tgt.horizon, int(lat)
+            )
+            lat_stats[int(lat)] = stats
+            lat_rows.append(decay.curve_row(meta, tgt.horizon, int(lat), stats))
+            typer.echo(f"latency {lat} ms: OOS R2 {lat_rows[-1].oos_r2:.4f}")
+        rows += [r for r in lat_rows if r.latency_ms > 0 or not horizons]
+        hl = decay.half_life_ci(lat_stats)
+        decay.write_half_life(tables / "half_life.csv", meta, tgt.horizon, hl)
+        typer.echo(f"half-life at {tgt.horizon} ms: {hl}")
+    if rows:
+        decay.write_rows(
+            tables / "alpha_decay.csv",
+            rows,
+            ("venue", "symbol", "clock", "model", "horizon", "latency_ms"),
+        )
+
+
+@app.command("importance")
+def importance_cmd(
+    run_id: Annotated[str, typer.Option("--run-id")],
+    results: Annotated[Path, typer.Option("--results")] = Path("results"),
+    tables: Annotated[Path, typer.Option("--tables")] = Path("reports/tables"),
+    figures: Annotated[Path, typer.Option("--figures")] = Path("reports/figures"),
+) -> None:
+    """Gain and mean |SHAP| per feature on OOS days, with a mechanism sentence (FR-26)."""
+    from lob_alpha.research import importance  # noqa: PLC0415
+
+    cfg = json.loads((results / "runs" / run_id / "config.json").read_text(encoding="utf-8"))
+    rows = importance.run_importance(Settings().data_dir, results, run_id)
+    importance.write_table(tables / "importance.csv", cfg, run_id, rows)
+    sym = cfg["symbol"].replace("/", "")
+    importance.figure(
+        figures / f"shap_summary_{cfg['venue']}_{sym}_{cfg['target']}.png",
+        f"{cfg['venue']} {cfg['symbol']} {cfg['target']}: mean |SHAP|, {rows[0].folds} folds",
+        rows,
+    )
+    for r in rows[:10]:
+        typer.echo(f"{r.shap_rank:2d} {r.feature:24s} {r.mean_abs_shap:.4f} gain {r.gain_rank}")
+
+
+@app.command("stability")
+def stability_cmd(
+    run_id: Annotated[list[str], typer.Option("--run-id", help="One or more runs.")],
+    results: Annotated[Path, typer.Option("--results")] = Path("results"),
+    tables: Annotated[Path, typer.Option("--tables")] = Path("reports/tables"),
+    figures: Annotated[Path, typer.Option("--figures")] = Path("reports/figures"),
+) -> None:
+    """Per-test-day OOS R2 with 95% CIs; forest plot over every run in the table (FR-25)."""
+    import csv  # noqa: PLC0415
+
+    from lob_alpha.research import stability  # noqa: PLC0415
+
+    for rid in run_id:
+        cfg = json.loads((results / "runs" / rid / "config.json").read_text(encoding="utf-8"))
+        rows = stability.run_days(Settings().data_dir, cfg, rid)
+        stability.write_table(tables / "stability.csv", rows)
+        pos = sum(r.oos_r2 > 0 for r in rows)
+        typer.echo(f"{rid} {cfg['venue']} {cfg['symbol']}: {pos}/{len(rows)} days OOS R2 > 0")
+    with (tables / "stability.csv").open(encoding="utf-8", newline="") as fh:
+        stability.forest(figures / "stability_forest.png", list(csv.DictReader(fh)))
 
 
 @app.command("export-model")
