@@ -106,6 +106,19 @@ uv run lob validate external --kind binance-vision --venue binance-usdm --symbol
 
 `rebuild` writes `interim/topn` and `interim/bbo_rebuilt`, one part per input part, and per-day stats under `interim/validation/`. `--venue` and `--symbol` narrow it, and `--no-write` checks without writing tables. `validate` turns the stats into `checkpoints_summary.csv`, `crossed_books.csv` and `checkpoint_failures.csv`, and exits 1 on any failure. The Binance Vision check downloads the day's `aggTrades` zip and its checksum into `raw/external/binance_vision/`. The Tardis check (`--kind tardis`) works only for a first-of-month day.
 
+## Features, labels and OFI replication (M4)
+
+From the rebuilt `interim/topn`, trades and the gap log. Same thread caps and priority as the rebuild. Writes are paced at 20 MB/s.
+
+```bash
+nice -n 10 ionice -c3 uv run lob features build --start 2026-11-01 --end 2026-11-19 --grid time
+nice -n 10 ionice -c3 uv run lob features build --start 2026-11-01 --end 2026-11-19 --grid event --venue binance-usdm
+uv run lob ofi replicate --start 2026-11-01 --end 2026-11-19
+uv run lob verify AC-W-04
+```
+
+`features build` writes `processed/features/.../clock={time,event}/part-HH.parquet` and the labels beside them under `processed/labels`. `lob labels build` is the same pass. `ofi replicate` runs on complete days only (DQ-10). It writes `reports/tables/ofi_replication.csv` and `reports/figures/ofi_scatter_*.png`, and exits 1 if AC-W-04 fails.
+
 ## Disk
 
 - Retention: canonical data, gaps, checkpoints and clock are kept. The raw archive is pruned after `LOB_RAW_ARCHIVE_DAYS`.
