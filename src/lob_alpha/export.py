@@ -234,7 +234,16 @@ def git_head() -> str:
             ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
         )
         dirty = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=no"],
+            [
+                "git",
+                "status",
+                "--porcelain",
+                "--untracked-files=no",
+                "--",
+                ".",
+                ":(exclude)results/trial_log.csv",
+                ":(exclude)results/experiment_log.csv",
+            ],
             capture_output=True,
             text=True,
             check=True,

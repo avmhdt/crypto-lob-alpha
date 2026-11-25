@@ -179,18 +179,19 @@ def hour_of(path: Path) -> int:
     return int(path.name[5:7])
 
 
-def read_trades(root: Path, venue: str, symbol: str, day: date) -> core.Trades:
+def read_trades(root: Path, venue: str, symbol: str, day: date, lot: float = 1e-8) -> core.Trades:
     parts = [
         pq.read_table(p, columns=["ts_recv", "side", "qty"])
         for p in day_files(root, "trades", venue, symbol, day)
     ]
     if not parts:
-        return core.make_trades(np.zeros(0, np.int64), np.zeros(0, np.int8), np.zeros(0))
+        return core.make_trades(np.zeros(0, np.int64), np.zeros(0, np.int8), np.zeros(0), lot)
     t = pa.concat_tables(parts)
     return core.make_trades(
         np.asarray(t.column("ts_recv").to_numpy(), np.int64),
         np.asarray(t.column("side").to_numpy(), np.int8),
         np.asarray(t.column("qty").to_numpy(), np.float64),
+        lot,
     )
 
 
@@ -263,29 +264,32 @@ def evaluate(
     e1 = core.cks_e(
         book.bpx[:, 0], book.bq[:, 0], book.apx[:, 0], book.aq[:, 0], book.segment_start
     )
+    lot = book.lot
     for n in p.ofi_events:
-        cols[f"ofi_l1_ev{n}"] = core.event_window_sum(e1, at, n, seg)
+        cols[f"ofi_l1_ev{n}"] = core.event_window_sum(e1, at, n, seg, lot)
     for w in p.ofi_ms:
-        cols[f"ofi_l1_ms{w}"] = core.time_window_sum(e1, book.ts, t, w * MS, lower_ts)
+        cols[f"ofi_l1_ms{w}"] = core.time_window_sum(e1, book.ts, t, w * MS, lower_ts, lot)
     for m in range(LEVELS):
         em = core.cks_e(
             book.bpx[:, m], book.bq[:, m], book.apx[:, m], book.aq[:, m], book.segment_start
         )
         for n in p.mlofi_events:
-            cols[f"mlofi_l{m + 1}_ev{n}"] = core.event_window_sum(em, at, n, seg)
+            cols[f"mlofi_l{m + 1}_ev{n}"] = core.event_window_sum(em, at, n, seg, lot)
         for w in p.mlofi_ms:
-            cols[f"mlofi_l{m + 1}_ms{w}"] = core.time_window_sum(em, book.ts, t, w * MS, lower_ts)
+            cols[f"mlofi_l{m + 1}_ms{w}"] = core.time_window_sum(
+                em, book.ts, t, w * MS, lower_ts, lot
+            )
     for n in p.tsi_trades:
         v, c = core.trade_imbalance(trades, t, last_n=n, lower_ts=np.full(len(t), day_start))
         cols[f"tsi_vol_tr{n}"], cols[f"tsi_cnt_tr{n}"] = v, c
     for w in p.tsi_ms:
         v, c = core.trade_imbalance(trades, t, w_ns=w * MS, lower_ts=np.full(len(t), day_start))
         cols[f"tsi_vol_ms{w}"], cols[f"tsi_cnt_ms{w}"] = v, c
-    changed = np.zeros(book.n)
+    changed = np.zeros(book.n, dtype=np.int64)
     if book.n > 1:
         d = mid[1:] != mid[:-1]
-        changed[1:] = np.where(np.isnan(mid[1:]) | np.isnan(mid[:-1]), 0.0, d.astype(np.float64))
-    changed[book.segment_start == np.arange(book.n)] = 0.0
+        changed[1:] = np.where(np.isnan(mid[1:]) | np.isnan(mid[:-1]), 0, d.astype(np.int64))
+    changed[book.segment_start == np.arange(book.n)] = 0
     for w in p.midchg_ms:
         cols[f"midchg_ms{w}"] = core.time_window_sum(changed, book.ts, t, w * MS, lower_ts)
     del grid
@@ -349,6 +353,7 @@ def build_day(
     root: Path, venue: str, symbol: str, day: date, p: Params, *,
     grids: tuple[str, ...] = ("time", "event"),
     write: bool = True,
+    lot: float | None = None,
 ) -> tuple[DayResult, dict[str, list[dict[str, npt.NDArray[Any]]]]]:  # fmt: skip
     """Features and labels for one day. Returns the result and, when not writing, the tables."""
     t0 = time.perf_counter()
@@ -360,7 +365,11 @@ def build_day(
     for f in files:
         by_hour.setdefault(hour_of(f), []).append(f)
     hours = sorted(by_hour)
-    trades = read_trades(root, venue, symbol, day)
+    if lot is None:
+        from lob_alpha.instruments import load_instruments  # noqa: PLC0415
+
+        lot = load_instruments().get(venue, symbol, day).lot_size
+    trades = read_trades(root, venue, symbol, day, lot)
     gaps = book_gaps(root, venue, symbol, day_start, day_end)
     data_end = day_data_end(by_hour)
     kept: dict[str, list[dict[str, npt.NDArray[Any]]]] = {g: [] for g in grids}
@@ -385,7 +394,14 @@ def build_day(
         rows = Rows.concat([prev_tail, cur, nxt.slice(0, head_n)])
         n_prev, n_cur = prev_tail.n, cur.n
         book = core.make_book(
-            rows.ts_recv, rows.ts_exchange, rows.bpx, rows.bq, rows.apx, rows.aq, rows.epoch
+            rows.ts_recv,
+            rows.ts_exchange,
+            rows.bpx,
+            rows.bq,
+            rows.apx,
+            rows.aq,
+            rows.epoch,
+            lot,
         )
         hour_lo = day_start + h * HOUR
         hour_hi = hour_lo + HOUR

@@ -48,7 +48,14 @@ class MicropriceTable:
 
 
 def _bucket(imb: F64, n_imb: int) -> npt.NDArray[np.int64]:
-    return np.clip(np.floor(imb * n_imb).astype(np.int64), 0, n_imb - 1)
+    """Index of the last lower edge b / n_imb (float64) that is <= I; I = 1 is the last bucket.
+
+    Comparing against the edges as written in feature_spec.json, rather than flooring
+    I * n_imb, makes the bucket identical for any consumer that applies the same rule.
+    """
+    edges = np.arange(n_imb) / n_imb
+    idx = np.searchsorted(edges, imb, side="right") - 1
+    return np.clip(idx, 0, n_imb - 1).astype(np.int64)
 
 
 def fit_microprice_arrays(
