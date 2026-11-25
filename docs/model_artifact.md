@@ -60,6 +60,26 @@ Command: `lob export-model --run-id <id> --version <semver> [--fold k] [--provis
 - **Resets:** windows never reach across a book reset (the snapshot batch that starts a new sync epoch) or across 00:00 UTC. Near a reset, the sum covers only the part of the window since the reset.
 - **Consumers:** an engine that warms up from its first event agrees with these values once every window is filled, and once the last reset and the last 00:00 UTC are at least the longest window in the past. The parity rows are chosen to satisfy both conditions: they start at 12:00 UTC or later and contain no gap.
 
+## Exact arithmetic
+
+A LightGBM split can fall between two float roundings of one true value, so a consumer reproduces predictions to 1e-9 only if its features are the same float64 values, bit for bit, not just within 1e-9. Every feature is therefore defined as exact integer arithmetic followed by a fixed, short sequence of float64 operations, with no fused multiply-add and no reordering:
+
+| Quantity | Computed as |
+|---|---|
+| Sizes | int64 lot counts, `round(size / lot_size)`. Recorded sizes are whole lots on every stream; the producer refuses a size more than 0.001 lot off |
+| e_n, OFI and MLOFI window sums, level sums, trade-volume sums, mid-change counts | exact int64 sums of lot counts or counts |
+| `ofi`, `mlofi` (raw) | `(float(sum_lots) * lot_size) / depth_norm`: one multiplication, then one division |
+| `integrated_ofi` (raw) | `x_l = float(sum_lots_l) * lot_size`; `acc = 0.0`; for l = 1..10 in order, `acc = acc + w_l * x_l`; then `acc / depth_norm` |
+| `queue_imbalance` | `float(Σ bid_lots − Σ ask_lots) / float(Σ bid_lots + Σ ask_lots)` |
+| `weighted_mid` | `float((qb − qa) · S) / float(2 (qb + qa))`, with level-1 sizes in lots and S = ask_1 − bid_1 in ticks, all integers |
+| micro-price I | `float(qb) / float(qb + qa)` in lots. The bucket is the last lower edge `b / imbalance_buckets` (float64, as in the table) that is ≤ I |
+| `trade_sign_imbalance` | `float(Σ side · lots) / float(Σ lots)` (volume) or `float(Σ side) / float(n)` (count); 0 for an empty window |
+| `realized_vol` | `sqrt(float(Σ d²)) / 2`, where d is the integer change of bid_1 + ask_1 in ticks between grid points |
+| `mid_changes`, `spread` | integers, converted to float64 |
+| Normalisation | `z = (x − mean) / std`, then clip to ±clip |
+
+An empty window is therefore exactly 0, and equal true values give equal floats in training and online.
+
 ## Normalisation
 
 The model input for feature `x` is `clip((x − mean) / std, −5, 5)`, using the `normalization` values in `feature_spec.json`. They are fitted on the training days only. A missing raw value stays missing (NaN), which LightGBM treats as missing. Every training statistic, including `depth_norm`, the integrated-OFI weights and the micro-price table, comes from the training days alone (AC-W-05).
@@ -82,7 +102,7 @@ The example uses two consecutive batches, n − 1 and n, with prices in ticks an
 | `integrated_ofi` | **Σ_l `params.weights[l−1]` × (level-l OFI sum over the window)**, divided by `depth_norm`, for l = 1..10. The weights are the first principal component of the depth-normalised level 1..10 OFI on the training rows (covariance PCA), scaled so that Σ\|w\| = 1 and Σ w > 0 | With weights (0.5, 0.3, 0.2, 0, …) and level sums (2.5, 1.0, −0.5, …): (1.25 + 0.3 − 0.1) / 12.5 = 0.116 |
 | `queue_imbalance` | **(Σ bid_qty_1..L − Σ ask_qty_1..L) / (Σ bid_qty_1..L + Σ ask_qty_1..L)**, where L = max(`levels`). It is missing when both sums are 0 | L = 1 at batch n: (2.5 − 1.0) / 3.5 = 0.428571… |
 | `microprice` | **Stoikov (2018) g(I, S) in ticks**, with I = bid_qty_1 / (bid_qty_1 + ask_qty_1) and S = ask_1 − bid_1 clamped to 1..`params.max_spread_ticks`. `params.table` rows are `[S, imbalance_lower_edge, g]`, with `imbalance_buckets` equal buckets. Take the last row for spread S whose edge is ≤ I (I = 1 falls in the last bucket). The table is fitted on consecutive training grid rows, symmetrised, and drops mid moves larger than one tick | I = 2.5 / 3.5 = 0.714. With 10 buckets that is the row `[1, 0.7, g]`, so the value is that row's g |
-| `weighted_mid` | **(bid_1 · ask_qty_1 + ask_1 · bid_qty_1) / (bid_qty_1 + ask_qty_1) − (bid_1 + ask_1) / 2**, in ticks, which equals (I − ½) · S | (0.714286 − 0.5) · 1 = 0.214286 |
+| `weighted_mid` | **(bid_1 · ask_qty_1 + ask_1 · bid_qty_1) / (bid_qty_1 + ask_qty_1) − (bid_1 + ask_1) / 2**, in ticks, which equals (I − ½) · S and is computed as (qb − qa) · S / (2 (qb + qa)) (see Exact arithmetic) | (0.714286 − 0.5) · 1 = 0.214286 |
 | `spread` | **ask_1 − bid_1**, in ticks | 1 |
 | `trade_sign_imbalance` | **Σ side · w / Σ w over the window**, with side +1 for buyer-initiated and −1 for seller-initiated (DQ-06). `params.weight` is `volume` (w = trade size) or `count` (w = 1) | Trades (+1, 0.5), (−1, 0.2), (+1, 0.1): volume (0.5 − 0.2 + 0.1) / 0.8 = 0.5; count (1 − 1 + 1) / 3 = 0.3333 |
 | `mid_changes` | **Number of book batches in the window whose mid differs from the previous batch's mid.** The first batch after a reset does not count | Mids 1000.5, 1000.5, 1001, 1000.5: 2 |

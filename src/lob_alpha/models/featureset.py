@@ -150,9 +150,12 @@ class Prep:
             if d.kind in ("ofi", "mlofi"):
                 out[:, j] = cols[d.name] / self.depth_norm
             elif d.kind == "integrated_ofi":
-                w = np.asarray(self.weights[d.name])
-                x = np.column_stack([cols[c] for c in d.stored_columns])
-                out[:, j] = (x @ w) / self.depth_norm
+                # acc = 0; acc = acc + w_l * x_l for l = 1..10 in order (no fused multiply-add,
+                # no reordering, unlike a BLAS dot product); then / depth_norm
+                acc = np.zeros(len(out))
+                for w_l, c in zip(self.weights[d.name], d.stored_columns, strict=True):
+                    acc = acc + w_l * cols[c]
+                out[:, j] = acc / self.depth_norm
             elif d.kind == "microprice":
                 assert self.micro is not None
                 out[:, j] = mp.lookup(self.micro, cols["imb_l1"], cols["spread_ticks"], clamp=True)

@@ -47,6 +47,7 @@ COLUMNS = [
     "dmid_ticks_time_500_lat100",
 ]  # fmt: skip
 RTOL = 1e-12
+LOT = 1e-6  # the synthetic sizes have 6 decimals
 
 
 def _concat(tables: list[dict[str, np.ndarray]]) -> dict[str, np.ndarray]:
@@ -61,9 +62,9 @@ def _single_pass(
         [read_topn(f) for f in day_files(root / "interim", "topn", venue, symbol, DAY)]
     )
     book = core.make_book(
-        rows.ts_recv, rows.ts_exchange, rows.bpx, rows.bq, rows.apx, rows.aq, rows.epoch
+        rows.ts_recv, rows.ts_exchange, rows.bpx, rows.bq, rows.apx, rows.aq, rows.epoch, LOT
     )
-    trades = read_trades(root, venue, symbol, DAY)
+    trades = read_trades(root, venue, symbol, DAY, LOT)
     gaps = book_gaps(root, venue, symbol, day_start, day_start + DAY_NS)
     lo = day_start + 10 * 3600 * NS
     g = np.arange(lo, lo + 2 * 3600 * NS, p.grid_ms * MS, dtype=np.int64)
@@ -99,7 +100,7 @@ def built(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, dict[str, Any
     write_capture(root)
     out = {}
     for venue, symbol, _ in VENUES:
-        _, kept = build_day(root, venue, symbol, DAY, Params(), write=False)
+        _, kept = build_day(root, venue, symbol, DAY, Params(), write=False, lot=LOT)
         out[(venue, symbol)] = {g: _concat(v) for g, v in kept.items() if v}
     return root, out
 

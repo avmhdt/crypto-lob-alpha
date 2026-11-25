@@ -38,7 +38,8 @@ def test_cks_ofi_hand_computed_example() -> None:
         ]
     )
     e = core.cks_e(b.bpx[:, 0], b.bq[:, 0], b.apx[:, 0], b.aq[:, 0], b.segment_start)
-    assert e.tolist() == [0.0, 4.0, -2.0, -0.5]
+    assert e.dtype == np.int64  # exact, in lots of 1e-8
+    assert (e * b.lot).tolist() == [0.0, 4.0, -2.0, -0.5]
 
 
 def test_cks_resets_at_a_new_epoch_and_skips_missing_sides() -> None:
