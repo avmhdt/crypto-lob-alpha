@@ -1,0 +1,129 @@
+{
+  "pooled": {
+    "n": 1720298,
+    "oos_r2": 0.00937140178942919,
+    "ic_spearman": 0.14619886221984724,
+    "hit_rate_nonzero": 0.5634483441692233,
+    "mae_ticks": 148.91410540005572,
+    "n_test_days": 2,
+    "n_trades": 13980,
+    "edge_bps": 0.7285094171185786,
+    "net_bps_taker": -9.288864540345541
+  },
+  "folds": [
+    {
+      "fold": 0,
+      "train": [
+        "2026-11-03",
+        "2026-11-05",
+        "2026-11-06",
+        "2026-11-08",
+        "2026-11-09"
+      ],
+      "val": [
+        "2026-11-16"
+      ],
+      "test": [
+        "2026-11-19"
+      ],
+      "n_train": 4318634,
+      "n_val": 863689,
+      "model": {
+        "objective": "regression",
+        "num_leaves": 63,
+        "learning_rate": 0.05,
+        "min_data_in_leaf": 500,
+        "feature_fraction": 0.8,
+        "deterministic": true,
+        "force_row_wise": true,
+        "num_threads": 8,
+        "seed": 20261102,
+        "metric": "l2",
+        "verbosity": -1,
+        "n_estimators": 2000,
+        "early_stopping_rounds": 100
+      },
+      "best_iteration": 21,
+      "val_r2": 0.011761532891103044,
+      "grid": [],
+      "train_mean": -1.046722412688827,
+      "threshold": 31.542887633636262,
+      "seconds": 18.3,
+      "n": 859369,
+      "oos_r2": 0.01788348754039637,
+      "ic_spearman": 0.16379959812458858,
+      "hit_rate_nonzero": 0.5727205697985894,
+      "mae_ticks": 133.58716440539405
+    },
+    {
+      "fold": 1,
+      "train": [
+        "2026-11-05",
+        "2026-11-06",
+        "2026-11-08",
+        "2026-11-09",
+        "2026-11-16"
+      ],
+      "val": [
+        "2026-11-19"
+      ],
+      "test": [
+        "2026-11-23"
+      ],
+      "n_train": 4318634,
+      "n_val": 859158,
+      "model": {
+        "objective": "regression",
+        "num_leaves": 63,
+        "learning_rate": 0.05,
+        "min_data_in_leaf": 500,
+        "feature_fraction": 0.8,
+        "deterministic": true,
+        "force_row_wise": true,
+        "num_threads": 8,
+        "seed": 20261102,
+        "metric": "l2",
+        "verbosity": -1,
+        "n_estimators": 2000,
+        "early_stopping_rounds": 100
+      },
+      "best_iteration": 36,
+      "val_r2": 0.01967283167252143,
+      "grid": [],
+      "train_mean": -1.293734546618213,
+      "threshold": 39.69261250560141,
+      "seconds": 18.4,
+      "n": 860929,
+      "oos_r2": 0.005034774743622128,
+      "ic_spearman": 0.1321006616910304,
+      "hit_rate_nonzero": 0.5544484551732779,
+      "mae_ticks": 164.21327403723882
+    }
+  ],
+  "per_day": [
+    {
+      "day": "2026-11-19",
+      "fold": 0,
+      "n": 859369,
+      "oos_r2": 0.01788348754039637,
+      "ic_spearman": 0.16379959812458858,
+      "hit_rate_nonzero": 0.5727205697985894,
+      "mae_ticks": 133.58716440539405,
+      "n_trades": 6764,
+      "net_bps_mean": -9.297774846148572,
+      "ret": -6.289014905934894
+    },
+    {
+      "day": "2026-11-23",
+      "fold": 1,
+      "n": 860929,
+      "oos_r2": 0.005034774743622128,
+      "ic_spearman": 0.1321006616910304,
+      "hit_rate_nonzero": 0.5544484551732779,
+      "mae_ticks": 164.21327403723882,
+      "n_trades": 7216,
+      "net_bps_mean": -9.280512363453676,
+      "ret": -6.696817721468173
+    }
+  ]
+}
