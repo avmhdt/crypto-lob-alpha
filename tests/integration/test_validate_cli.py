@@ -263,3 +263,19 @@ def test_vision_gap_by_last_id_covers_a_lagging_feed() -> None:
     gap = (t(day, 14, 0), t(day, 14, 0) + 4 * 10**9, 2)
     res = external.compare_vision(vision, recorded, [gap], "binance-usdm", "BTCUSDT", day, True)
     assert res.missing == 6 and res.missing_in_gaps == 6 and res.missing_live == 0
+
+
+def test_complete_days_leave_out_today(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import json
+
+    from lob_alpha.reports.gaplog import Stream
+    from lob_alpha.validate import dq
+
+    (tmp_path / "capture.json").write_text(
+        json.dumps({"started_ns": t(D1, 0, 0)}), encoding="utf-8"
+    )
+    streams = [Stream(V, S, "book"), Stream(V, S, "trades")]
+    monkeypatch.setattr(dq, "utc_today", lambda: D2)  # D2 is still in progress
+    days = dq.complete_days(tmp_path, streams, D1, D2)
+    assert days.filter(pl.col("date") == str(D1))["complete"].item() is True
+    assert days.filter(pl.col("date") == str(D2)).is_empty()

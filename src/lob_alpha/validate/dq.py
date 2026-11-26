@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import cast
 from urllib.parse import unquote
@@ -82,17 +82,22 @@ def clock_offsets(data_dir: Path, start: date, end: date) -> pl.DataFrame:
     return _query(sql)
 
 
+def utc_today() -> date:
+    return datetime.now(UTC).date()
+
+
 def complete_days(data_dir: Path, streams: list[Stream], start: date, end: date) -> pl.DataFrame:
     """Coverage per stream per day and the DQ-10 verdict (book and trades both >= 99%).
 
-    A day counts as whole only when it starts at or after the capture start: coverage only
-    sees logged gaps, so the hours before the first start would otherwise look covered.
+    A day counts as whole only when it starts at or after the capture start and has ended
+    (UTC): coverage only sees logged gaps, so the hours before the first start, or the rest
+    of a day still in progress, would otherwise look covered.
     """
     gaps = load_gaps(data_dir)
     capture = health.read_json(data_dir / health.CAPTURE_FILE) or {}
     first_ns = int(capture.get("started_ns", 0))
     lo = _ns(start)
-    hi = min(_ns(end) + NS_PER_DAY, _ns(date.today() + timedelta(days=1)))
+    hi = min(_ns(end) + NS_PER_DAY, _ns(utc_today()))  # today has not ended yet
     daily = coverage_by_day(gaps, streams, lo, hi)
     pivot = (
         daily.filter(pl.col("stream").is_in(["book", "trades"]))
