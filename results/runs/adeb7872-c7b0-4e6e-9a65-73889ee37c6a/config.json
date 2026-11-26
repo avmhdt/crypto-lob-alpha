@@ -1,0 +1,72 @@
+{
+  "clock": "time",
+  "days": [
+    "2026-11-03",
+    "2026-11-05",
+    "2026-11-06",
+    "2026-11-08",
+    "2026-11-09",
+    "2026-11-16",
+    "2026-11-19",
+    "2026-11-23"
+  ],
+  "exec": {
+    "check": "touch_taker_v0",
+    "quantile": 0.9,
+    "taker_fee_bps": 5.0
+  },
+  "features": [
+    "ofi_l1_ms100",
+    "ofi_l1_ms1000",
+    "ofi_l1_ms10000",
+    "mlofi_l2_ms1000",
+    "mlofi_l3_ms1000",
+    "mlofi_l4_ms1000",
+    "mlofi_l5_ms1000",
+    "mlofi_l6_ms1000",
+    "mlofi_l7_ms1000",
+    "mlofi_l8_ms1000",
+    "mlofi_l9_ms1000",
+    "mlofi_l10_ms1000",
+    "integrated_ofi_ms1000",
+    "qi_l1",
+    "qi_l5",
+    "microprice_adj_ticks",
+    "wmid_adj_ticks",
+    "spread_ticks",
+    "tsi_vol_ms1000",
+    "tsi_cnt_ms1000",
+    "tsi_vol_ms10000",
+    "tsi_cnt_ms10000",
+    "midchg_ms1000",
+    "midchg_ms10000",
+    "rv_ms1000",
+    "rv_ms10000",
+    "rv_ms60000"
+  ],
+  "model": "lgbm",
+  "model_cfg": {
+    "deterministic": true,
+    "early_stopping_rounds": 100,
+    "feature_fraction": 0.8,
+    "learning_rate": 0.05,
+    "min_data_in_leaf": 500,
+    "n_estimators": 2000,
+    "num_leaves": 63,
+    "num_threads": 8,
+    "objective": "regression"
+  },
+  "permute": false,
+  "seed": 20261102,
+  "symbol": "BTCUSDT",
+  "target": "dmid_ticks_time_500",
+  "venue": "binance-usdm",
+  "walk_forward": {
+    "folds": null,
+    "purge_s": 31.0,
+    "step_days": 1,
+    "test_days": 1,
+    "train_days": 5,
+    "val_days": 1
+  }
+}
